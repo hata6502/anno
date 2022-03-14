@@ -1,0 +1,32 @@
+{
+  "name": "anno",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "description": "Flexible annotation for the web. ",
+  "action": {},
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+N"
+      }
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dist/content.js"]
+    }
+  ],
+  "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" },
+  "options_page": "options.html",
+  "permissions": ["storage", "tabs"],
+  "web_accessible_resources": [
+    {
+      "matches": ["<all_urls>"],
+      "resources": ["annotation.html"]
+    }
+  ]
+}
