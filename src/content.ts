@@ -1,7 +1,6 @@
 // @ts-expect-error
 import * as textQuote from "dom-anchor-text-quote";
 import { BackgroundMessage } from "./background";
-// TODO: remove window.getTextQuoteSelectorfromSelection()
 import { TextQuoteSelector, injectByTextQuote } from "./text-quote-injection";
 
 const pageURL = new URL(location.href);
