@@ -1,0 +1,24 @@
+{
+  "name": "anno",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "description": "Social bookmark on Scrapbox. ",
+  "action": {},
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      }
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dist/content.js"]
+    }
+  ]
+}
