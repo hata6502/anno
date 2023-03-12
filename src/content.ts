@@ -136,29 +136,45 @@ const contentMessage: ContentMessage = {
 chrome.runtime.sendMessage(contentMessage);
 
 addEventListener("load", () => {
-  let urlSearchParams;
-
+  let triedSearchParams;
   try {
-    urlSearchParams = new URLSearchParams(location.hash);
+    triedSearchParams = new URLSearchParams(location.hash);
   } catch {
     return;
   }
-
-  const exact = urlSearchParams.get("e");
+  const searchParams = triedSearchParams;
+  const exact = searchParams.get("e");
   if (!exact) {
     return;
   }
 
-  const selection = getSelection();
-  const range: Range | null = textQuote.toRange(document.body, {
-    prefix: urlSearchParams.get("p") ?? undefined,
-    exact,
-    suffix: urlSearchParams.get("s") ?? undefined,
-  });
-  if (!selection || !range) {
-    return;
-  }
+  const highlight = () => {
+    const selection = getSelection();
+    const range: Range | null = textQuote.toRange(document.body, {
+      prefix: searchParams.get("p") ?? undefined,
+      exact,
+      suffix: searchParams.get("s") ?? undefined,
+    });
+    if (!selection || !range) {
+      return;
+    }
 
-  selection.removeAllRanges();
-  selection.addRange(range);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const startElement =
+      range.startContainer instanceof Element
+        ? range.startContainer
+        : range.startContainer.parentElement;
+    startElement?.scrollIntoView({ block: "center" });
+
+    mutationObserver.disconnect();
+  };
+
+  const mutationObserver = new MutationObserver(highlight);
+  mutationObserver.observe(document.body, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+  highlight();
 });

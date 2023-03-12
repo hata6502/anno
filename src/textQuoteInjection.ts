@@ -36,7 +36,6 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
   inject();
 
   let timeoutID: number | undefined;
-
   const mutationObserver = new MutationObserver(() => {
     clearTimeout(timeoutID);
 
