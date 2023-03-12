@@ -1,5 +1,5 @@
 import { ContentMessage } from "./content";
-import { TextQuoteSelector } from "./text-quote-injection";
+import { TextQuoteSelector } from "./textQuoteInjection";
 
 type InjectionConfig = {
   textQuoteSelector: TextQuoteSelector;

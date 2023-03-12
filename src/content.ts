@@ -1,10 +1,14 @@
 // @ts-expect-error
 import * as textQuote from "dom-anchor-text-quote";
 import { BackgroundMessage } from "./background";
-import { TextQuoteSelector, injectByTextQuote } from "./text-quote-injection";
+import { TextQuoteSelector, injectByTextQuote } from "./textQuoteInjection";
+
+export type ContentMessage = {
+  type: "ready";
+  url: string;
+};
 
 const pageURL = new URL(location.href);
-
 pageURL.hash = "";
 pageURL.search = "";
 
@@ -25,9 +29,9 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         link = `[${
           textQuoteSelector.exact
         } ${pageURL.toString()}#${new URLSearchParams({
-          ...(textQuoteSelector.prefix && { anno_p: textQuoteSelector.prefix }),
-          anno_e: textQuoteSelector.exact,
-          ...(textQuoteSelector.suffix && { anno_s: textQuoteSelector.suffix }),
+          ...(textQuoteSelector.prefix && { p: textQuoteSelector.prefix }),
+          e: textQuoteSelector.exact,
+          ...(textQuoteSelector.suffix && { s: textQuoteSelector.suffix }),
         }).toString()}]`;
       }
 
@@ -114,16 +118,10 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   }
 });
 
-export type ContentMessage = {
-  type: "ready";
-  url: string;
-};
-
 const contentMessage: ContentMessage = {
   type: "ready",
   url: pageURL.toString(),
 };
-
 chrome.runtime.sendMessage(contentMessage);
 
 addEventListener("load", () => {
@@ -135,34 +133,21 @@ addEventListener("load", () => {
     return;
   }
 
-  const exact = urlSearchParams.get("anno_e");
-
+  const exact = urlSearchParams.get("e");
   if (!exact) {
     return;
   }
 
+  const selection = getSelection();
   const range: Range | null = textQuote.toRange(document.body, {
-    prefix: urlSearchParams.get("anno_p") ?? undefined,
+    prefix: urlSearchParams.get("p") ?? undefined,
     exact,
-    suffix: urlSearchParams.get("anno_s") ?? undefined,
+    suffix: urlSearchParams.get("s") ?? undefined,
   });
-
-  if (!range) {
+  if (!selection || !range) {
     return;
   }
 
-  const commonAncestorContainer = range.commonAncestorContainer;
-
-  const markTargetElement =
-    commonAncestorContainer instanceof HTMLElement
-      ? commonAncestorContainer
-      : commonAncestorContainer.parentElement;
-
-  if (!markTargetElement) {
-    return;
-  }
-
-  markTargetElement.style.backgroundColor = "lemonchiffon";
-  markTargetElement.style.color = "black";
-  location.hash = "";
+  selection.removeAllRanges();
+  selection.addRange(range);
 });
