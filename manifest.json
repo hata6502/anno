@@ -2,7 +2,7 @@
   "name": "anno",
   "version": "1.0.0",
   "manifest_version": 3,
-  "description": "Social bookmark on Scrapbox. ",
+  "description": "Flexible annotation for the web. ",
   "action": {},
   "background": {
     "service_worker": "dist/background.js"

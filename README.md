@@ -1,6 +1,6 @@
 # anno
 
-Social bookmark on Scrapbox.
+Flexible annotation for the web.
 
 ## Disclaimer
 
