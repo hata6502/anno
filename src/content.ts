@@ -8,12 +8,14 @@ export type ContentMessage = {
   url: string;
 };
 
-const pageURL = new URL(location.href);
-pageURL.hash = "";
-pageURL.search = "";
+const getPageURL = () => {
+  const pageURL = new URL(location.href);
+  pageURL.hash = "";
+  pageURL.search = "";
+  return String(pageURL);
+};
 
 let cleanUp: (() => void) | undefined;
-
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   switch (backgroundMessage.type) {
     case "getTextQuoteSelectorfromSelection": {
@@ -28,7 +30,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
 
         link = `[${
           textQuoteSelector.exact
-        } ${pageURL.toString()}#${new URLSearchParams({
+        } ${getPageURL()}#${new URLSearchParams({
           ...(textQuoteSelector.prefix && { p: textQuoteSelector.prefix }),
           e: textQuoteSelector.exact,
           ...(textQuoteSelector.suffix && { s: textQuoteSelector.suffix }),
@@ -40,7 +42,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
 
       open(
         `https://scrapbox.io/anno/${encodeURIComponent(
-          pageURL.toString()
+          getPageURL()
         )}?${new URLSearchParams({
           ...(body.trim() && { body }),
         }).toString()}`
@@ -54,13 +56,14 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
 
       cleanUp = injectByTextQuote(
         backgroundMessage.configs.map(
-          ({ textQuoteSelector, url, iconImageURLs }) => ({
+          ({ textQuoteSelector, url, description, iconImageURLs }) => ({
             textQuoteSelector,
             inject: (range: Range) => {
               const linkElement = document.createElement("a");
               linkElement.href = url;
               linkElement.rel = "noopener";
               linkElement.target = "_blank";
+              linkElement.title = description;
               linkElement.style.all = "revert";
 
               for (const iconImageURL of iconImageURLs) {
@@ -128,7 +131,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
 
 const contentMessage: ContentMessage = {
   type: "ready",
-  url: pageURL.toString(),
+  url: getPageURL(),
 };
 chrome.runtime.sendMessage(contentMessage);
 

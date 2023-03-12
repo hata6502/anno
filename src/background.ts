@@ -4,6 +4,7 @@ import { TextQuoteSelector } from "./textQuoteInjection";
 type InjectionConfig = {
   textQuoteSelector: TextQuoteSelector;
   url: string;
+  description: string;
   iconImageURLs: string[];
 };
 
@@ -56,12 +57,28 @@ chrome.runtime.onMessage.addListener(
         }
 
         const page = await scrapboxPageAPIResponse.json();
+        const sections = [];
+        let section = [];
+        for (const line of page.lines.slice(1)) {
+          if (line.text) {
+            section.push(line);
+          } else {
+            sections.push(section);
+            section = [];
+          }
+        }
+        sections.push(section);
+
         const configs = [];
-        for (const line of page.lines) {
-          for (const match of line.text.matchAll(/\[.*?\s(.*?)\]/g)) {
+        for (const section of sections) {
+          if (!section.length) {
+            continue;
+          }
+
+          for (const urlMatch of section[0].text.matchAll(/\[.*?\s(.*?)\]/g)) {
             let searchParams;
             try {
-              searchParams = new URLSearchParams(new URL(match[1]).hash);
+              searchParams = new URLSearchParams(new URL(urlMatch[1]).hash);
             } catch {
               continue;
             }
@@ -71,7 +88,7 @@ chrome.runtime.onMessage.addListener(
               continue;
             }
 
-            let iconTowerExtractedLine = line.text;
+            let iconTowerExtractedLine = section[0].text;
             for (const multiIconExpressionMatch of iconTowerExtractedLine.matchAll(
               /\[([^\[\]]+\.icon)\*([1-9]\d*)\]/g
             )) {
@@ -121,7 +138,12 @@ chrome.runtime.onMessage.addListener(
               },
               url: `https://scrapbox.io/anno/${encodeURIComponent(
                 contentMessage.url
-              )}#${line.id}`,
+              )}#${section[0].id}`,
+              // TODO: convert to plain text?
+              description: section
+                .slice(1)
+                .map(({ text }) => text)
+                .join("\n"),
               iconImageURLs,
             };
             configs.push(config);
