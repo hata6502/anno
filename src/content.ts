@@ -53,58 +53,66 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
       cleanUp?.();
 
       cleanUp = injectByTextQuote(
-        backgroundMessage.configs.map(({ textQuoteSelector, url }) => ({
-          textQuoteSelector,
-          inject: (range: Range) => {
-            const linkElement = document.createElement("a");
+        backgroundMessage.configs.map(
+          ({ textQuoteSelector, url, iconImageURLs }) => ({
+            textQuoteSelector,
+            inject: (range: Range) => {
+              const linkElement = document.createElement("a");
+              linkElement.href = url;
+              linkElement.rel = "noopener";
+              linkElement.target = "_blank";
+              linkElement.style.all = "revert";
 
-            linkElement.href = url;
-            linkElement.rel = "noopener";
-            linkElement.target = "_blank";
-            linkElement.textContent = "🍀";
-            linkElement.style.all = "revert";
-            linkElement.style.textDecoration = "none";
-
-            if (range.endContainer.textContent?.trim()) {
-              range.collapse();
-              range.insertNode(linkElement);
-            } else {
-              const treeWalker = document.createTreeWalker(
-                range.commonAncestorContainer,
-                NodeFilter.SHOW_ALL
-              );
-
-              let currentNode: Node | null = treeWalker.currentNode;
-              let actualLastTextNode: Text | undefined;
-
-              while (currentNode) {
-                if (
-                  currentNode instanceof Text &&
-                  currentNode.textContent?.trim()
-                ) {
-                  actualLastTextNode = currentNode;
-                }
-
-                if (currentNode === range.endContainer) {
-                  actualLastTextNode?.after(linkElement);
-
-                  break;
-                }
-
-                currentNode = treeWalker.nextNode();
+              for (const iconImageURL of iconImageURLs) {
+                const imageElement = document.createElement("img");
+                imageElement.src = iconImageURL;
+                imageElement.style.all = "revert";
+                imageElement.style.verticalAlign = "middle";
+                imageElement.style.width = "20px";
+                linkElement.append(imageElement);
               }
-            }
 
-            return linkElement;
-          },
-          cleanUp: (linkElement) => {
-            if (!(linkElement instanceof HTMLAnchorElement)) {
-              throw new Error("invalid linkElement");
-            }
+              if (range.endContainer.textContent?.trim()) {
+                range.collapse();
+                range.insertNode(linkElement);
+              } else {
+                const treeWalker = document.createTreeWalker(
+                  range.commonAncestorContainer,
+                  NodeFilter.SHOW_ALL
+                );
 
-            linkElement.remove();
-          },
-        }))
+                let currentNode: Node | null = treeWalker.currentNode;
+                let actualLastTextNode: Text | undefined;
+
+                while (currentNode) {
+                  if (
+                    currentNode instanceof Text &&
+                    currentNode.textContent?.trim()
+                  ) {
+                    actualLastTextNode = currentNode;
+                  }
+
+                  if (currentNode === range.endContainer) {
+                    actualLastTextNode?.after(linkElement);
+
+                    break;
+                  }
+
+                  currentNode = treeWalker.nextNode();
+                }
+              }
+
+              return linkElement;
+            },
+            cleanUp: (linkElement) => {
+              if (!(linkElement instanceof HTMLAnchorElement)) {
+                throw new Error("invalid linkElement");
+              }
+
+              linkElement.remove();
+            },
+          })
+        )
       );
 
       return;
