@@ -40,6 +40,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
       const body = `${link}
 `;
 
+      const dummy = encodeURIComponent("DUMMY");
       open(
         `https://scrapbox.io/anno/${encodeURIComponent(
           // SearchParamsやhashは取り除く。
