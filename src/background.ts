@@ -109,7 +109,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     );
     if (!scrapboxPageAPIResponse.ok) {
       console.error(`Failed to fetch page: ${scrapboxPageAPIResponse.status}`);
-      return;
+      continue;
     }
 
     const page = await scrapboxPageAPIResponse.json();
