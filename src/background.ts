@@ -1,3 +1,4 @@
+import { ContentMessage } from "./content";
 import { TextQuoteSelector } from "./textQuoteInjection";
 import { initialStorageValues } from "./storage";
 import { getAnnoPageTitle, getPageURL } from "./url";
@@ -51,7 +52,7 @@ const { projects } = await projectsAPIResponse.json();
 const watchingProjects = await Promise.all(
   [...projects]
     .sort((a, b) => b.updated - a.updated)
-    .slice(0, 5)
+    .slice(0, 3)
     .map(async (project) => {
       const projectAPIResponse = await fetch(
         `https://scrapbox.io/api/projects/${encodeURIComponent(project.name)}`
@@ -65,12 +66,17 @@ const watchingProjects = await Promise.all(
     })
 );
 
+const cleanUpMap = new Map<number, () => void>();
+const cleanUp = ({ tabId }: { tabId: number }) => {
+  cleanUpMap.get(tabId)?.();
+  cleanUpMap.delete(tabId);
+};
+
 const iconImageURLMap = new Map<string, string>();
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status !== "complete" || !tab.url) {
-    return;
-  }
-  const annoPageTitle = getAnnoPageTitle(getPageURL(tab.url));
+const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
+  cleanUp({ tabId });
+
+  const annoPageTitle = getAnnoPageTitle(getPageURL(url));
 
   const annodataMap = new Map<string, Annodata>();
   const configs: InjectionConfig[] = [];
@@ -135,7 +141,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
             /\[([^\[\]]+)\.icon\]/g
           )) {
             const iconTitle = iconExpressionMatch[1];
-            let iconImageURL = iconImageURLMap.get(iconTitle);
+            const iconKey = `/${project.name}/${iconTitle}`;
+            let iconImageURL = iconImageURLMap.get(iconKey);
             if (!iconImageURL) {
               const iconAPIResponse = await fetch(
                 `https://scrapbox.io/api/pages/${encodeURIComponent(
@@ -147,10 +154,26 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
                   `Failed to fetch iconAPI: ${iconAPIResponse.status}`
                 );
               }
-
               const { image } = await iconAPIResponse.json();
-              iconImageURLMap.set(iconTitle, image);
-              iconImageURL = image as string;
+
+              const iconImageResponse = await fetch(image);
+              if (!iconImageResponse.ok) {
+                throw new Error(
+                  `Failed to fetch the icon image: ${iconImageResponse.status}`
+                );
+              }
+
+              const fileReader = new FileReader();
+              iconImageURL = await new Promise<string>(async (resolve) => {
+                fileReader.addEventListener("load", () => {
+                  if (typeof fileReader.result !== "string") {
+                    throw new Error("fileReader result is not string. ");
+                  }
+                  resolve(fileReader.result);
+                });
+                fileReader.readAsDataURL(await iconImageResponse.blob());
+              });
+              iconImageURLMap.set(iconKey, iconImageURL);
             }
 
             iconImageURLs.push(iconImageURL);
@@ -191,12 +214,54 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     })
   );
 
-  // @ts-expect-error
-  await chrome.storage.session.set(Object.fromEntries(annodataMap));
+  await chrome.storage.local.set(Object.fromEntries(annodataMap));
 
   const backgroundMessage: BackgroundMessage = {
     type: "inject",
     configs,
   };
   chrome.tabs.sendMessage(tabId, backgroundMessage);
+
+  cleanUpMap.set(tabId, async () => {
+    await chrome.storage.local.remove([...annodataMap.keys()]);
+  });
+};
+
+chrome.runtime.onMessage.addListener(
+  async (contentMessage: ContentMessage, sender) => {
+    const tabId = sender.tab?.id;
+    if (!tabId) {
+      throw new Error("tabId is empty. ");
+    }
+    const url = sender.tab?.url;
+    if (!url) {
+      throw new Error("url is empty. ");
+    }
+
+    switch (contentMessage.type) {
+      case "load": {
+        await inject({ tabId, url });
+        break;
+      }
+
+      /*default: {
+        const exhaustiveCheck: never = contentMessage;
+        throw new Error(`Unknown message type: ${exhaustiveCheck}`);
+      }*/
+    }
+  }
+);
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  if (!changeInfo.url) {
+    return;
+  }
+  await inject({ tabId, url: changeInfo.url });
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  cleanUp({ tabId });
+});
+chrome.tabs.onReplaced.addListener((_addedTabId, removedTabId) => {
+  cleanUp({ tabId: removedTabId });
 });

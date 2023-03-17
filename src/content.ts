@@ -2,19 +2,13 @@
 import * as textQuote from "dom-anchor-text-quote";
 import { BackgroundMessage } from "./background";
 import { TextQuoteSelector, injectByTextQuote } from "./textQuoteInjection";
-import { getAnnoPageTitle, getPageURL } from "./url";
+import {
+  encodeForScrapboxReadableLink,
+  getAnnoPageTitle,
+  getPageURL,
+} from "./url";
 
-const encodeForScrapboxReadableLink = (uriComponent: string) => {
-  let encoded = encodeURIComponent(uriComponent);
-
-  for (const match of uriComponent.matchAll(
-    /[\p{scx=Hiragana}\p{scx=Katakana}\p{scx=Han}]/gu
-  )) {
-    encoded = encoded.replace(encodeURIComponent(match[0]), match[0]);
-  }
-
-  return encoded;
-};
+export type ContentMessage = { type: "load" };
 
 let cleanUp: (() => void) | undefined;
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
@@ -57,8 +51,10 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
     case "inject": {
       cleanUp?.();
       cleanUp = injectByTextQuote(
-        backgroundMessage.configs.map(
-          ({ textQuoteSelector, annotationURL }) => ({
+        // Reverse to the icon order.
+        [...backgroundMessage.configs]
+          .reverse()
+          .map(({ textQuoteSelector, annotationURL }) => ({
             textQuoteSelector,
             inject: (range: Range) => {
               const iframeElement = document.createElement("iframe");
@@ -103,8 +99,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
               }
               iframeElement.remove();
             },
-          })
-        )
+          }))
       );
       break;
     }
@@ -116,7 +111,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   }
 });
 
-addEventListener("load", () => {
+(() => {
   let triedSearchParams;
   try {
     triedSearchParams = new URLSearchParams(location.hash);
@@ -158,4 +153,7 @@ addEventListener("load", () => {
     characterData: true,
   });
   highlight();
-});
+})();
+
+const loadMessage: ContentMessage = { type: "load" };
+chrome.runtime.sendMessage(loadMessage);

@@ -8,8 +8,7 @@ if (!id) {
   throw new Error("id is empty. ");
 }
 
-// @ts-expect-error
-const { [id]: annodata } = await chrome.storage.session.get(id);
+const { [id]: annodata } = await chrome.storage.local.get(id);
 const { url, description, iconImageURL } = annodata as Annodata;
 
 const linkElement = document.createElement("a");
