@@ -54,7 +54,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         // Reverse to the icon order.
         [...backgroundMessage.configs]
           .reverse()
-          .map(({ textQuoteSelector, annotationURL }) => ({
+          .map(({ textQuoteSelector, annotationURL, iconSize }) => ({
             textQuoteSelector,
             inject: (range: Range) => {
               const iframeElement = document.createElement("iframe");
@@ -66,8 +66,8 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
               );
               iframeElement.style.all = "revert";
               iframeElement.style.border = "none";
-              iframeElement.style.width = "20px";
-              iframeElement.style.height = "20px";
+              iframeElement.style.width = `${iconSize}px`;
+              iframeElement.style.height = `${iconSize}px`;
 
               const clonedRange = range.cloneRange();
               if (clonedRange.endOffset === 0) {

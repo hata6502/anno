@@ -9,7 +9,7 @@ if (!id) {
 }
 
 const { [id]: annodata } = await chrome.storage.local.get(id);
-const { url, description, iconImageURL } = annodata as Annodata;
+const { url, description, iconImageURL, iconSize } = annodata as Annodata;
 
 const linkElement = document.createElement("a");
 linkElement.href = url;
@@ -20,8 +20,8 @@ linkElement.title = description;
 const imageElement = document.createElement("img");
 imageElement.src = iconImageURL;
 imageElement.style.verticalAlign = "middle";
-imageElement.style.width = "20px";
-imageElement.style.height = "20px";
+imageElement.style.width = `${iconSize}px`;
+imageElement.style.height = `${iconSize}px`;
 linkElement.append(imageElement);
 
 document.body.append(linkElement);

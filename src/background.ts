@@ -10,6 +10,7 @@ export interface Annodata {
   url: string;
   description: string;
   iconImageURL: string;
+  iconSize: number;
 }
 
 export type BackgroundMessage =
@@ -25,6 +26,7 @@ export type BackgroundMessage =
 interface InjectionConfig {
   textQuoteSelector: TextQuoteSelector;
   annotationURL: string;
+  iconSize: number;
 }
 
 interface Project {
@@ -100,7 +102,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   }
 
   const annodataMap = new Map<string, Annodata>();
-  const configs: InjectionConfig[] = [];
+  const configs = [];
   for (const watchingProject of watchingProjects) {
     const scrapboxPageAPIResponse = await fetch(
       `https://scrapbox.io/api/pages/${encodeURIComponent(
@@ -143,31 +145,24 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
           continue;
         }
 
-        let iconTowerExtractedLine = section[0].text;
-        for (const multiIconExpressionMatch of iconTowerExtractedLine.matchAll(
-          /\[([^\[\]]+\.icon)\*([1-9]\d*)\]/g
+        const icons = [];
+        for (const iconExpressionMatch of section[0].text.matchAll(
+          /(\[?)\[([^\]]+)\.icon(?:\*([1-9]\d*))?\](\]?)/g
         )) {
-          iconTowerExtractedLine = iconTowerExtractedLine.replace(
-            multiIconExpressionMatch[0],
-            `[${multiIconExpressionMatch[1]}]`.repeat(
-              Math.min(Number(multiIconExpressionMatch[2]), 10)
-            )
+          const title = iconExpressionMatch[2];
+          const tower = Number(iconExpressionMatch[3] ?? "1");
+          const isStrong = Boolean(
+            iconExpressionMatch[1] && iconExpressionMatch[4]
           );
-        }
 
-        const iconImageURLs = [];
-        for (const iconExpressionMatch of iconTowerExtractedLine.matchAll(
-          /\[([^\[\]]+)\.icon\]/g
-        )) {
-          const iconTitle = iconExpressionMatch[1];
-          const iconKey = `/${watchingProject.name}/${iconTitle}`;
-          let iconImageURL = await iconImageURLCache.get(iconKey);
-          if (iconImageURL === undefined) {
+          const iconKey = `/${watchingProject.name}/${title}`;
+          let url = await iconImageURLCache.get(iconKey);
+          if (url === undefined) {
             const iconImageURLPromise = (async () => {
               const iconAPIResponse = await fetch(
                 `https://scrapbox.io/api/pages/${encodeURIComponent(
                   watchingProject.name
-                )}/${encodeURIComponent(iconTitle)}`
+                )}/${encodeURIComponent(title)}`
               );
               if (!iconAPIResponse.ok) {
                 console.error(
@@ -198,20 +193,26 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
             })();
 
             iconImageURLCache.set(iconKey, iconImageURLPromise);
-            iconImageURL = await iconImageURLPromise;
+            url = await iconImageURLPromise;
           }
 
-          if (iconImageURL) {
-            iconImageURLs.push(iconImageURL);
+          if (url) {
+            for (const _towerIndex of Array(tower).keys()) {
+              icons.push({ url, isStrong });
+            }
           }
         }
 
-        if (!iconImageURLs.length) {
-          iconImageURLs.push(watchingProject.image ?? fallbackIconImageURL);
+        if (!icons.length) {
+          icons.push({
+            url: watchingProject.image ?? fallbackIconImageURL,
+            isStrong: false,
+          });
         }
 
-        for (const iconImageURL of iconImageURLs) {
+        for (const icon of icons) {
           const id = crypto.randomUUID();
+          const iconSize = icon.isStrong ? 60 : 20;
 
           annodataMap.set(id, {
             url: `https://scrapbox.io/${encodeURIComponent(
@@ -221,10 +222,11 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
               .slice(1)
               .map(({ text }) => text)
               .join("\n"),
-            iconImageURL,
+            iconImageURL: icon.url,
+            iconSize,
           });
 
-          const config = {
+          const config: InjectionConfig = {
             textQuoteSelector: {
               prefix: searchParams.get("p") ?? undefined,
               exact,
@@ -233,6 +235,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
             annotationURL: `${chrome.runtime.getURL(
               "annotation.html"
             )}?${new URLSearchParams({ id })}`,
+            iconSize,
           };
           configs.push(config);
         }
