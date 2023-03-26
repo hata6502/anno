@@ -2,13 +2,27 @@
 import * as textQuote from "dom-anchor-text-quote";
 import { BackgroundMessage } from "./background";
 import { TextQuoteSelector, injectByTextQuote } from "./textQuoteInjection";
-import {
-  encodeForScrapboxReadableLink,
-  getAnnoPageTitle,
-  getPageURL,
-} from "./url";
+import { encodeForScrapboxReadableLink, getAnnoPageTitle } from "./url";
 
-export type ContentMessage = { type: "load" };
+export type ContentMessage = { type: "urlChange"; url: string };
+
+const getURL = () => {
+  const canonicalLinkElement = document.querySelector(
+    'link[rel="canonical" i]'
+  );
+  const url = new URL(
+    (canonicalLinkElement instanceof HTMLLinkElement &&
+      canonicalLinkElement.href) ||
+      location.href
+  );
+
+  url.searchParams.delete("p");
+  url.searchParams.delete("e");
+  url.searchParams.delete("s");
+  url.hash = "";
+
+  return String(url);
+};
 
 let cleanUp: (() => void) | undefined;
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
@@ -40,7 +54,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         `https://scrapbox.io/${encodeURIComponent(
           backgroundMessage.annoProjectName
         )}/${encodeURIComponent(
-          getAnnoPageTitle(getPageURL(location.href))
+          getAnnoPageTitle(getURL())
         )}?${new URLSearchParams({
           ...(body.trim() && { body }),
         }).toString()}`
@@ -155,5 +169,12 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   highlight();
 })();
 
-const loadMessage: ContentMessage = { type: "load" };
-chrome.runtime.sendMessage(loadMessage);
+const sendURLChangeMessage = () => {
+  const urlChangeMessage: ContentMessage = {
+    type: "urlChange",
+    url: getURL(),
+  };
+  chrome.runtime.sendMessage(urlChangeMessage);
+};
+sendURLChangeMessage();
+addEventListener("popstate", sendURLChangeMessage);

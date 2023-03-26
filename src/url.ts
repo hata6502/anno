@@ -20,10 +20,3 @@ export const getAnnoPageTitle = (url: string) => {
     ]).get(annoURL.protocol) ?? annoURL.protocol;
   return decodeURI(String(annoURL));
 };
-
-export const getPageURL = (url: string) => {
-  const pageURL = new URL(url);
-  pageURL.hash = "";
-  pageURL.search = "";
-  return String(pageURL);
-};

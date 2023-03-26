@@ -1,7 +1,7 @@
 import { ContentMessage } from "./content";
 import { TextQuoteSelector } from "./textQuoteInjection";
 import { initialStorageValues } from "./storage";
-import { getAnnoPageTitle, getPageURL } from "./url";
+import { getAnnoPageTitle } from "./url";
 
 const fallbackIconImageURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
@@ -65,7 +65,7 @@ const projectCache = new Map<string, Promise<Project | null>>();
 const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   cleanUp({ tabId });
 
-  const annoPageTitle = getAnnoPageTitle(getPageURL(url));
+  const annoPageTitle = getAnnoPageTitle(url);
 
   const watchingProjects = [];
   const { watchlist, annoProjectName } = await chrome.storage.sync.get(
@@ -262,14 +262,10 @@ chrome.runtime.onMessage.addListener(
     if (!tabId) {
       throw new Error("tabId is empty. ");
     }
-    const url = sender.tab?.url;
-    if (!url) {
-      throw new Error("url is empty. ");
-    }
 
     switch (contentMessage.type) {
-      case "load": {
-        await inject({ tabId, url });
+      case "urlChange": {
+        await inject({ tabId, url: contentMessage.url });
         break;
       }
 
@@ -280,13 +276,6 @@ chrome.runtime.onMessage.addListener(
     }
   }
 );
-
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
-  if (!changeInfo.url) {
-    return;
-  }
-  await inject({ tabId, url: changeInfo.url });
-});
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   cleanUp({ tabId });
