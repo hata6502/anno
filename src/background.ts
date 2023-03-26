@@ -15,7 +15,7 @@ export interface Annodata {
 
 export type BackgroundMessage =
   | {
-      type: "getTextQuoteSelectorfromSelection";
+      type: "annotate";
       annoProjectName: string;
     }
   | {
@@ -48,7 +48,7 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 
   const backgroundMessage: BackgroundMessage = {
-    type: "getTextQuoteSelectorfromSelection",
+    type: "annotate",
     annoProjectName,
   };
   chrome.tabs.sendMessage(tab.id, backgroundMessage);

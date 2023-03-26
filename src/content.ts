@@ -27,17 +27,17 @@ const getURL = () => {
 let cleanUp: (() => void) | undefined;
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   switch (backgroundMessage.type) {
-    case "getTextQuoteSelectorfromSelection": {
+    case "annotate": {
       const selection = getSelection();
-      let link = "";
+      let body;
 
-      if (selection && selection.rangeCount >= 1) {
+      if (selection && !selection.isCollapsed && selection.rangeCount >= 1) {
         const textQuoteSelector: TextQuoteSelector = textQuote.fromRange(
           document.body,
           selection.getRangeAt(0)
         );
 
-        link = `[${textQuoteSelector.exact} ${location.href}#${[
+        body = `[${textQuoteSelector.exact} ${location.href}#${[
           ...(textQuoteSelector.prefix
             ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
             : []),
@@ -48,16 +48,12 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         ].join("&")}]`;
       }
 
-      const body = `${link}`;
-
       open(
         `https://scrapbox.io/${encodeURIComponent(
           backgroundMessage.annoProjectName
         )}/${encodeURIComponent(
           getAnnoPageTitle(getURL())
-        )}?${new URLSearchParams({
-          ...(body.trim() && { body }),
-        }).toString()}`
+        )}?${new URLSearchParams({ ...(body && { body }) })}`
       );
       break;
     }
