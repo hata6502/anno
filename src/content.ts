@@ -121,7 +121,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   }
 });
 
-(() => {
+const highlight = () => {
   let triedSearchParams;
   try {
     triedSearchParams = new URLSearchParams(location.hash);
@@ -134,43 +134,48 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
     return;
   }
 
-  const highlight = () => {
-    const selection = getSelection();
-    const range: Range | null = textQuote.toRange(document.body, {
-      prefix: searchParams.get("p") ?? undefined,
-      exact,
-      suffix: searchParams.get("s") ?? undefined,
-    });
-    if (!selection || !range) {
-      return;
-    }
-
-    selection.removeAllRanges();
-    selection.addRange(range);
-    const startElement =
-      range.startContainer instanceof Element
-        ? range.startContainer
-        : range.startContainer.parentElement;
-    startElement?.scrollIntoView({ block: "center" });
-
-    mutationObserver.disconnect();
-  };
-
-  const mutationObserver = new MutationObserver(highlight);
-  mutationObserver.observe(document.body, {
-    subtree: true,
-    childList: true,
-    characterData: true,
+  const selection = getSelection();
+  const range: Range | null = textQuote.toRange(document.body, {
+    prefix: searchParams.get("p") ?? undefined,
+    exact,
+    suffix: searchParams.get("s") ?? undefined,
   });
-  highlight();
-})();
+  if (!selection || !range) {
+    return;
+  }
 
-const sendURLChangeMessage = () => {
-  const urlChangeMessage: ContentMessage = {
-    type: "urlChange",
-    url: getURL(),
-  };
-  chrome.runtime.sendMessage(urlChangeMessage);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  const startElement =
+    range.startContainer instanceof Element
+      ? range.startContainer
+      : range.startContainer.parentElement;
+  startElement?.scrollIntoView({ block: "center" });
+
+  mutationObserver.disconnect();
 };
-sendURLChangeMessage();
-addEventListener("popstate", sendURLChangeMessage);
+
+let prevURL: string | undefined;
+const sendURLChangeMessage = () => {
+  if (prevURL !== location.href) {
+    const urlChangeMessage: ContentMessage = {
+      type: "urlChange",
+      url: getURL(),
+    };
+    chrome.runtime.sendMessage(urlChangeMessage);
+  }
+
+  prevURL = location.href;
+};
+
+const handleDocumentChange = () => {
+  highlight();
+  sendURLChangeMessage();
+};
+const mutationObserver = new MutationObserver(handleDocumentChange);
+mutationObserver.observe(document, {
+  subtree: true,
+  childList: true,
+  characterData: true,
+});
+handleDocumentChange();
