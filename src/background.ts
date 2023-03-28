@@ -73,10 +73,10 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   const annoPageTitle = getAnnoPageTitle(url);
 
   const watchingProjects = [];
-  const { watchlist, annoProjectName } = await chrome.storage.sync.get(
+  const { annoProjectName } = await chrome.storage.sync.get(
     initialStorageValues
   );
-  for (const projectName of new Set([annoProjectName, ...watchlist])) {
+  for (const projectName of [annoProjectName]) {
     if (!projectName) {
       continue;
     }
