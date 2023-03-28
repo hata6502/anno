@@ -1,6 +1,6 @@
 {
   "name": "anno",
-  "version": "1.2.0",
+  "version": "0.0.2",
   "manifest_version": 3,
   "description": "Flexible annotation for the web. ",
   "action": {},

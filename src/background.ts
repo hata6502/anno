@@ -1,3 +1,4 @@
+import PQueue from "p-queue";
 import { ContentMessage } from "./content";
 import { TextQuoteSelector } from "./textQuoteInjection";
 import { initialStorageValues } from "./storage";
@@ -33,6 +34,10 @@ interface Project {
   name: string;
   image?: string;
 }
+
+const fetchQueue = new PQueue({ interval: 1000, intervalCap: 1 });
+const queuedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
+  fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
 chrome.action.onClicked.addListener(async (tab) => {
   if (typeof tab.id !== "number") {
@@ -79,7 +84,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     let project = await projectCache.get(projectName);
     if (project === undefined) {
       const projectPromise = (async () => {
-        const projectAPIResponse = await fetch(
+        const projectAPIResponse = await queuedFetch(
           `https://scrapbox.io/api/projects/${encodeURIComponent(projectName)}`
         );
         if (!projectAPIResponse.ok) {
@@ -104,7 +109,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   const annodataMap = new Map<string, Annodata>();
   const configs = [];
   for (const watchingProject of watchingProjects) {
-    const scrapboxPageAPIResponse = await fetch(
+    const scrapboxPageAPIResponse = await queuedFetch(
       `https://scrapbox.io/api/pages/${encodeURIComponent(
         watchingProject.name
       )}/${encodeURIComponent(annoPageTitle)}?followRename=true`
