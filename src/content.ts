@@ -43,7 +43,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         }
 
         lines.push(
-          `[${textQuoteSelector.exact} ${location.href}#${[
+          `[${textQuoteSelector.exact} ${getURL()}#${[
             ...(textQuoteSelector.prefix
               ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
               : []),
@@ -168,7 +168,7 @@ const highlight = () => {
 
 let prevURL: string | undefined;
 const sendURLChangeMessage = () => {
-  if (prevURL !== location.href) {
+  if (prevURL !== getURL()) {
     const urlChangeMessage: ContentMessage = {
       type: "urlChange",
       url: getURL(),
@@ -176,7 +176,7 @@ const sendURLChangeMessage = () => {
     chrome.runtime.sendMessage(urlChangeMessage);
   }
 
-  prevURL = location.href;
+  prevURL = getURL();
 };
 
 const handleDocumentChange = () => {
