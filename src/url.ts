@@ -10,7 +10,7 @@ export const encodeForScrapboxReadableLink = (uriComponent: string) => {
   return encoded;
 };
 
-export const getAnnoPageTitle = (url: string) => {
+export const getAnnolink = (url: string) => {
   const annoURL = new URL(url);
   // Prevent detection anno page title as external link.
   annoURL.protocol =

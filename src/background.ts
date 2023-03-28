@@ -2,7 +2,7 @@ import PQueue from "p-queue";
 import { ContentMessage } from "./content";
 import { TextQuoteSelector } from "./textQuoteInjection";
 import { initialStorageValues } from "./storage";
-import { getAnnoPageTitle } from "./url";
+import { getAnnolink } from "./url";
 
 const fallbackIconImageURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
@@ -22,6 +22,7 @@ export type BackgroundMessage =
   | {
       type: "inject";
       configs: InjectionConfig[];
+      existedAnnopageTitle?: string;
     };
 
 interface InjectionConfig {
@@ -67,25 +68,41 @@ const cleanUp = ({ tabId }: { tabId: number }) => {
 
 const iconImageURLCache = new Map<string, Promise<string | null>>();
 const projectCache = new Map<string, Promise<Project | null>>();
-const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
-  cleanUp({ tabId });
+const fetchAnnodata = async ({
+  annoProjectName,
+  annolink,
+}: {
+  annoProjectName: string;
+  annolink: string;
+}) => {
+  const annodataMap = new Map<string, Annodata>();
+  const configs: InjectionConfig[] = [];
 
-  const annoPageTitle = getAnnoPageTitle(url);
-
-  const watchingProjects = [];
-  const { annoProjectName } = await chrome.storage.sync.get(
-    initialStorageValues
+  const annolinkResponse = await queuedFetch(
+    `https://scrapbox.io/api/pages/${encodeURIComponent(
+      annoProjectName
+    )}/${encodeURIComponent(annolink)}`
   );
-  for (const projectName of [annoProjectName]) {
-    if (!projectName) {
-      continue;
-    }
+  if (!annolinkResponse.ok) {
+    console.error(`Failed to fetch page: ${annolinkResponse.status}`);
+    return { annodataMap, configs };
+  }
+  const { relatedPages } = await annolinkResponse.json();
+  const annolinks = [
+    ...relatedPages.links1hop,
+    ...relatedPages.projectLinks1hop,
+  ];
+  const existedAnnopageTitle = relatedPages.links1hop.at(0)?.title;
 
-    let project = await projectCache.get(projectName);
-    if (project === undefined) {
+  for (const annolink of annolinks) {
+    const annopageProjectName = annolink.projectName ?? annoProjectName;
+    let annopageProject = await projectCache.get(annopageProjectName);
+    if (annopageProject === undefined) {
       const projectPromise = (async () => {
         const projectAPIResponse = await queuedFetch(
-          `https://scrapbox.io/api/projects/${encodeURIComponent(projectName)}`
+          `https://scrapbox.io/api/projects/${encodeURIComponent(
+            annopageProjectName
+          )}`
         );
         if (!projectAPIResponse.ok) {
           console.error(
@@ -97,32 +114,27 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
         return project as Project;
       })();
 
-      projectCache.set(projectName, projectPromise);
-      project = await projectPromise;
+      projectCache.set(annopageProjectName, projectPromise);
+      annopageProject = await projectPromise;
     }
-
-    if (project) {
-      watchingProjects.push(project);
-    }
-  }
-
-  const annodataMap = new Map<string, Annodata>();
-  const configs = [];
-  for (const watchingProject of watchingProjects) {
-    const scrapboxPageAPIResponse = await queuedFetch(
-      `https://scrapbox.io/api/pages/${encodeURIComponent(
-        watchingProject.name
-      )}/${encodeURIComponent(annoPageTitle)}?followRename=true`
-    );
-    if (!scrapboxPageAPIResponse.ok) {
-      console.error(`Failed to fetch page: ${scrapboxPageAPIResponse.status}`);
+    if (!annopageProject) {
       continue;
     }
 
-    const page = await scrapboxPageAPIResponse.json();
+    const annopageResponse = await queuedFetch(
+      `https://scrapbox.io/api/pages/${encodeURIComponent(
+        annopageProject.name
+      )}/${encodeURIComponent(annolink.title)}`
+    );
+    if (!annopageResponse.ok) {
+      console.error(`Failed to fetch page: ${annopageResponse.status}`);
+      continue;
+    }
+    const annopage = await annopageResponse.json();
+
     const sections = [];
     let section = [];
-    for (const line of page.lines.slice(1)) {
+    for (const line of annopage.lines.slice(1)) {
       if (line.text) {
         section.push(line);
       } else {
@@ -160,13 +172,13 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
             iconExpressionMatch[1] && iconExpressionMatch[4]
           );
 
-          const iconKey = `/${watchingProject.name}/${title}`;
+          const iconKey = `/${annopageProject.name}/${title}`;
           let url = await iconImageURLCache.get(iconKey);
           if (url === undefined) {
             const iconImageURLPromise = (async () => {
               const iconAPIResponse = await fetch(
                 `https://scrapbox.io/api/pages/${encodeURIComponent(
-                  watchingProject.name
+                  annopageProject.name
                 )}/${encodeURIComponent(title)}`
               );
               if (!iconAPIResponse.ok) {
@@ -210,7 +222,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
 
         if (!icons.length) {
           icons.push({
-            url: watchingProject.image ?? fallbackIconImageURL,
+            url: annopageProject.image ?? fallbackIconImageURL,
             isStrong: false,
           });
         }
@@ -221,8 +233,8 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
 
           annodataMap.set(id, {
             url: `https://scrapbox.io/${encodeURIComponent(
-              watchingProject.name
-            )}/${encodeURIComponent(annoPageTitle)}#${section[0].id}`,
+              annopageProject.name
+            )}/${encodeURIComponent(annopage.title)}#${section[0].id}`,
             description: section
               .slice(1)
               .map(({ text }) => text)
@@ -231,7 +243,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
             iconSize,
           });
 
-          const config: InjectionConfig = {
+          const config = {
             textQuoteSelector: {
               prefix: searchParams.get("p") ?? undefined,
               exact,
@@ -248,11 +260,25 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     }
   }
 
-  await chrome.storage.local.set(Object.fromEntries(annodataMap));
+  return { annodataMap, configs, existedAnnopageTitle };
+};
 
+const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
+  cleanUp({ tabId });
+
+  const { annoProjectName } = await chrome.storage.sync.get(
+    initialStorageValues
+  );
+  const { annodataMap, configs, existedAnnopageTitle } = await fetchAnnodata({
+    annoProjectName,
+    annolink: getAnnolink(url),
+  });
+
+  await chrome.storage.local.set(Object.fromEntries(annodataMap));
   const backgroundMessage: BackgroundMessage = {
     type: "inject",
     configs,
+    existedAnnopageTitle,
   };
   chrome.tabs.sendMessage(tabId, backgroundMessage);
 

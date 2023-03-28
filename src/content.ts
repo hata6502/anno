@@ -2,7 +2,7 @@
 import * as textQuote from "dom-anchor-text-quote";
 import { BackgroundMessage } from "./background";
 import { TextQuoteSelector, injectByTextQuote } from "./textQuoteInjection";
-import { encodeForScrapboxReadableLink, getAnnoPageTitle } from "./url";
+import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
 export type ContentMessage = { type: "urlChange"; url: string };
 
@@ -25,11 +25,12 @@ const getURL = () => {
 };
 
 let cleanUp: (() => void) | undefined;
+let existedAnnopageTitle: string | undefined;
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   switch (backgroundMessage.type) {
     case "annotate": {
       const selection = getSelection();
-      let body;
+      const lines = [];
 
       if (selection && !selection.isCollapsed && selection.rangeCount >= 1) {
         const textQuoteSelector: TextQuoteSelector = textQuote.fromRange(
@@ -37,24 +38,32 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
           selection.getRangeAt(0)
         );
 
-        body = `[${textQuoteSelector.exact} ${location.href}#${[
-          ...(textQuoteSelector.prefix
-            ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
-            : []),
-          `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
-          ...(textQuoteSelector.suffix
-            ? [`s=${encodeForScrapboxReadableLink(textQuoteSelector.suffix)}`]
-            : []),
-        ].join("&")}]`;
+        if (!existedAnnopageTitle) {
+          lines.push(`[${getAnnolink(getURL())}]`, "");
+        }
+
+        lines.push(
+          `[${textQuoteSelector.exact} ${location.href}#${[
+            ...(textQuoteSelector.prefix
+              ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
+              : []),
+            `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
+            ...(textQuoteSelector.suffix
+              ? [`s=${encodeForScrapboxReadableLink(textQuoteSelector.suffix)}`]
+              : []),
+          ].join("&")}]`
+        );
       }
 
+      const annopageTitle = existedAnnopageTitle ?? document.title;
       open(
         `https://scrapbox.io/${encodeURIComponent(
           backgroundMessage.annoProjectName
-        )}/${encodeURIComponent(
-          getAnnoPageTitle(getURL())
-        )}?${new URLSearchParams({ ...(body && { body }) })}`
+        )}/${encodeURIComponent(annopageTitle)}?${new URLSearchParams({
+          body: lines.join("\n"),
+        })}`
       );
+      existedAnnopageTitle = annopageTitle;
       break;
     }
 
@@ -111,6 +120,8 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
             },
           }))
       );
+
+      existedAnnopageTitle = backgroundMessage.existedAnnopageTitle;
       break;
     }
 
