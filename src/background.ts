@@ -36,7 +36,7 @@ interface Project {
   image?: string;
 }
 
-const fetchQueue = new PQueue({ interval: 1000, intervalCap: 1 });
+const fetchQueue = new PQueue({ interval: 5000, intervalCap: 5 });
 const queuedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
