@@ -1,6 +1,6 @@
 // @ts-expect-error
 import * as textQuote from "dom-anchor-text-quote";
-import { BackgroundMessage } from "./background";
+import { BackgroundMessage, Link } from "./background";
 import { TextQuoteSelector, injectByTextQuote } from "./textQuoteInjection";
 import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
@@ -25,7 +25,7 @@ const getURL = () => {
 };
 
 let cleanUp: (() => void) | undefined;
-let existedAnnopageTitle: string | undefined;
+let existedAnnolink: Link | undefined;
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   switch (backgroundMessage.type) {
     case "annotate": {
@@ -38,7 +38,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
           selection.getRangeAt(0)
         );
 
-        if (!existedAnnopageTitle) {
+        if (!existedAnnolink) {
           lines.push(`[${getAnnolink(getURL())}]`, "");
         }
 
@@ -58,15 +58,15 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         );
       }
 
-      const annopageTitle = existedAnnopageTitle ?? document.title;
+      const annolink = existedAnnolink ?? { title: document.title };
       open(
         `https://scrapbox.io/${encodeURIComponent(
-          backgroundMessage.annoProjectName
-        )}/${encodeURIComponent(annopageTitle)}?${new URLSearchParams({
+          annolink.projectName ?? backgroundMessage.annoProjectName
+        )}/${encodeURIComponent(annolink.title)}?${new URLSearchParams({
           body: lines.join("\n"),
         })}`
       );
-      existedAnnopageTitle = annopageTitle;
+      existedAnnolink = annolink;
       break;
     }
 
@@ -124,7 +124,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
           }))
       );
 
-      existedAnnopageTitle = backgroundMessage.existedAnnopageTitle;
+      existedAnnolink = backgroundMessage.existedAnnolink;
       break;
     }
 
