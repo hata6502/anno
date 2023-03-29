@@ -43,7 +43,10 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         }
 
         lines.push(
-          `[${textQuoteSelector.exact} ${getURL()}#${[
+          `[${textQuoteSelector.exact
+            .replaceAll("[", "")
+            .replaceAll("]", "")
+            .replaceAll("\n", "")} ${getURL()}#${[
             ...(textQuoteSelector.prefix
               ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
               : []),
