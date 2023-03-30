@@ -110,16 +110,20 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
                 }
               }
 
-              clonedRange.collapse();
-              clonedRange.insertNode(iframeElement);
+              const markElement = document.createElement("mark");
+              markElement.style.all = "revert";
+              markElement.append(clonedRange.extractContents(), iframeElement);
+              clonedRange.insertNode(markElement);
 
-              return iframeElement;
+              return markElement;
             },
-            cleanUp: (iframeElement) => {
-              if (!(iframeElement instanceof Element)) {
+            cleanUp: (markElement) => {
+              if (!(markElement instanceof Element)) {
                 throw new Error("invalid element. ");
               }
-              iframeElement.remove();
+              // Remove the mark and iframe element.
+              markElement.after(...[...markElement.childNodes].slice(0, -1));
+              markElement.remove();
             },
           }))
       );
