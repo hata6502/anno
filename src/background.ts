@@ -154,7 +154,7 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
     const annopageResponse = await queuedFetch(
       `https://scrapbox.io/api/pages/${encodeURIComponent(
         annopageProject.name
-      )}/${encodeURIComponent(annolink.title)}`
+      )}/${encodeURIComponent(annolink.title)}?followRename`
     );
     if (!annopageResponse.ok) {
       console.error(`Failed to fetch page: ${annopageResponse.status}`);
@@ -206,24 +206,13 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
           let url = await iconImageURLCache.get(iconKey);
           if (url === undefined) {
             const iconImageURLPromise = (async () => {
-              const iconAPIResponse = await fetch(
+              const iconResponse = await fetch(
                 `https://scrapbox.io/api/pages/${encodeURIComponent(
                   annopageProject.name
-                )}/${encodeURIComponent(title)}`
+                )}/${encodeURIComponent(title)}/icon?followRename`
               );
-              if (!iconAPIResponse.ok) {
-                console.error(
-                  `Failed to fetch iconAPI: ${iconAPIResponse.status}`
-                );
-                return null;
-              }
-              const { image } = await iconAPIResponse.json();
-
-              const iconImageResponse = await fetch(image);
-              if (!iconImageResponse.ok) {
-                console.error(
-                  `Failed to fetch the icon image: ${iconImageResponse.status}`
-                );
+              if (!iconResponse.ok) {
+                console.error(`Failed to fetch icon: ${iconResponse.status}`);
                 return null;
               }
 
@@ -235,7 +224,7 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
                   }
                   resolve(fileReader.result);
                 });
-                fileReader.readAsDataURL(await iconImageResponse.blob());
+                fileReader.readAsDataURL(await iconResponse.blob());
               });
             })();
 
