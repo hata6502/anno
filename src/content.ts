@@ -43,7 +43,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         }
 
         lines.push(
-          `[${textQuoteSelector.exact
+          `> [${textQuoteSelector.exact
             .replaceAll("[", "")
             .replaceAll("]", "")
             .replaceAll("\n", "")} ${getURL()}#${[
@@ -174,7 +174,7 @@ const highlight = () => {
 };
 
 let prevURL: string | undefined;
-const sendURLChangeMessage = () => {
+const checkURLChange = () => {
   if (prevURL !== getURL()) {
     const urlChangeMessage: ContentMessage = {
       type: "urlChange",
@@ -185,10 +185,14 @@ const sendURLChangeMessage = () => {
 
   prevURL = getURL();
 };
+setInterval(() => {
+  prevURL = undefined;
+  checkURLChange();
+}, 60000);
 
 const handleDocumentChange = () => {
   highlight();
-  sendURLChangeMessage();
+  checkURLChange();
 };
 const mutationObserver = new MutationObserver(handleDocumentChange);
 mutationObserver.observe(document, {
