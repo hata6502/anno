@@ -1,7 +1,7 @@
 // @ts-expect-error
 import * as textQuote from "dom-anchor-text-quote";
 
-export type CleanUpTextQuoteInjection = (props: unknown) => void;
+export type CleanUpTextQuoteInjection = () => void;
 
 export interface TextQuoteSelector {
   exact: string;
@@ -11,64 +11,60 @@ export interface TextQuoteSelector {
 
 export interface TextQuoteInjectionConfig {
   textQuoteSelector: TextQuoteSelector;
-  inject: (match: Range) => unknown;
-  cleanUp: CleanUpTextQuoteInjection;
+  inject: (match: Range) => CleanUpTextQuoteInjection;
 }
 
-type CleanUpTask = [CleanUpTextQuoteInjection, unknown];
+interface Injection {
+  config: TextQuoteInjectionConfig;
+  cleanUp?: CleanUpTextQuoteInjection;
+  range?: Range;
+}
 
 export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
-  let cleanUpTasks: CleanUpTask[] = [];
-
-  const cleanUp = () =>
-    cleanUpTasks.forEach((cleanUpTask) => cleanUpTask[0](cleanUpTask[1]));
+  let injections: Injection[] = configs.map((config) => ({ config }));
 
   const inject = () => {
-    cleanUp();
+    injections = injections.map(({ config, cleanUp, range }) => {
+      let nextCleanUp = cleanUp;
+      let nextRange = range;
 
-    cleanUpTasks = configs.flatMap((config) => {
-      const range = textQuote.toRange(document.body, config.textQuoteSelector);
+      const currentRange: Range | undefined = textQuote.toRange(
+        document.body,
+        config.textQuoteSelector
+      );
+      if (
+        nextRange?.startContainer !== currentRange?.startContainer ||
+        nextRange?.startOffset !== currentRange?.startOffset ||
+        nextRange?.endContainer !== currentRange?.endContainer ||
+        nextRange?.endOffset !== currentRange?.endOffset
+      ) {
+        nextCleanUp?.();
+        nextCleanUp = currentRange ? config.inject(currentRange) : undefined;
 
-      return range ? [[config.cleanUp, config.inject(range)]] : [];
+        // Do not use currentRange because it may be changed by config.inject().
+        nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
+      }
+
+      return { config, cleanUp: nextCleanUp, range: nextRange };
     });
   };
 
-  inject();
-
-  let timeoutID: number | undefined;
-  const mutationObserver = new MutationObserver(() => {
-    clearTimeout(timeoutID);
-
-    timeoutID = window.setTimeout(() => {
-      mutationObserver.disconnect();
-      inject();
-      observeMutation();
-    });
-  });
-
-  const observeMutation = () =>
+  const handleMutation = () => {
+    mutationObserver.disconnect();
+    inject();
     mutationObserver.observe(document.body, {
       subtree: true,
       childList: true,
       characterData: true,
     });
-
-  observeMutation();
+  };
+  const mutationObserver = new MutationObserver(handleMutation);
+  handleMutation();
 
   return () => {
     mutationObserver.disconnect();
-    cleanUp();
+    for (const { cleanUp } of injections) {
+      cleanUp?.();
+    }
   };
-};
-
-export const getTextQuoteSelectorfromSelection = ():
-  | TextQuoteSelector
-  | undefined => {
-  const selection = getSelection();
-
-  if (!selection || selection.rangeCount < 1) {
-    return;
-  }
-
-  return textQuote.fromRange(document.body, selection.getRangeAt(0));
 };

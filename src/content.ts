@@ -24,7 +24,7 @@ const getURL = () => {
   return String(url);
 };
 
-let cleanUp: (() => void) | undefined;
+let cleanUpInjections: (() => void) | undefined;
 let existedAnnolink: Link | undefined;
 let prevWindow: Window | null = null;
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
@@ -73,8 +73,8 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
     }
 
     case "inject": {
-      cleanUp?.();
-      cleanUp = injectByTextQuote(
+      cleanUpInjections?.();
+      cleanUpInjections = injectByTextQuote(
         // Reverse to the icon order.
         [...backgroundMessage.configs]
           .reverse()
@@ -119,15 +119,11 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
               markElement.append(clonedRange.extractContents(), iframeElement);
               clonedRange.insertNode(markElement);
 
-              return markElement;
-            },
-            cleanUp: (markElement) => {
-              if (!(markElement instanceof Element)) {
-                throw new Error("invalid element. ");
-              }
-              // Remove the mark and iframe element.
-              markElement.after(...[...markElement.childNodes].slice(0, -1));
-              markElement.remove();
+              return () => {
+                // Remove the mark and iframe element.
+                markElement.after(...[...markElement.childNodes].slice(0, -1));
+                markElement.remove();
+              };
             },
           }))
       );
@@ -189,6 +185,9 @@ const highlight = () => {
 let prevURL: string | undefined;
 const checkURLChange = () => {
   if (prevURL !== getURL()) {
+    cleanUpInjections?.();
+    cleanUpInjections = undefined;
+
     highlighted = false;
 
     const urlChangeMessage: ContentMessage = {
