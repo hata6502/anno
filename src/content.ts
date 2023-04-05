@@ -26,6 +26,7 @@ const getURL = () => {
 
 let cleanUp: (() => void) | undefined;
 let existedAnnolink: Link | undefined;
+let prevWindow: Window | null = null;
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   switch (backgroundMessage.type) {
     case "annotate": {
@@ -59,7 +60,8 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
       }
 
       const annolink = existedAnnolink ?? { title: document.title };
-      open(
+      prevWindow?.close();
+      prevWindow = open(
         `https://scrapbox.io/${encodeURIComponent(
           annolink.projectName ?? backgroundMessage.annoProjectName
         )}/${encodeURIComponent(annolink.title)}?${new URLSearchParams({
@@ -90,6 +92,8 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
               iframeElement.style.border = "none";
               iframeElement.style.width = `${iconSize}px`;
               iframeElement.style.height = `${iconSize}px`;
+              iframeElement.style.marginLeft = "4px";
+              iframeElement.style.marginRight = "4px";
 
               const clonedRange = range.cloneRange();
               if (clonedRange.endOffset === 0) {
@@ -139,7 +143,16 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   }
 });
 
+addEventListener("beforeunload", () => {
+  prevWindow?.close();
+});
+
+let highlighted = false;
 const highlight = () => {
+  if (highlighted) {
+    return;
+  }
+
   let triedSearchParams;
   try {
     triedSearchParams = new URLSearchParams(location.hash);
@@ -170,12 +183,14 @@ const highlight = () => {
       : range.startContainer.parentElement;
   startElement?.scrollIntoView({ block: "center" });
 
-  mutationObserver.disconnect();
+  highlighted = true;
 };
 
 let prevURL: string | undefined;
 const checkURLChange = () => {
   if (prevURL !== getURL()) {
+    highlighted = false;
+
     const urlChangeMessage: ContentMessage = {
       type: "urlChange",
       url: getURL(),
@@ -191,13 +206,13 @@ setInterval(() => {
 }, 60000);
 
 const handleDocumentChange = () => {
-  highlight();
   checkURLChange();
+  highlight();
 };
+handleDocumentChange();
 const mutationObserver = new MutationObserver(handleDocumentChange);
 mutationObserver.observe(document, {
   subtree: true,
   childList: true,
   characterData: true,
 });
-handleDocumentChange();

@@ -1,4 +1,1 @@
-export const initialStorageValues = {
-  annoProjectName: "",
-  watchlist: ["anno", "", ""],
-};
+export const initialStorageValues = { annoProjectName: "" };
