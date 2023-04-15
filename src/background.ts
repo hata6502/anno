@@ -42,11 +42,7 @@ const fetchQueue = new PQueue({ interval: 5000, intervalCap: 5 });
 const queuedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
-chrome.action.onClicked.addListener(async (tab) => {
-  if (typeof tab.id !== "number") {
-    return;
-  }
-
+const annotate = async ({ tabId }: { tabId: number }) => {
   const { annoProjectName } = await chrome.storage.sync.get(
     initialStorageValues
   );
@@ -59,7 +55,26 @@ chrome.action.onClicked.addListener(async (tab) => {
     type: "annotate",
     annoProjectName,
   };
-  chrome.tabs.sendMessage(tab.id, backgroundMessage);
+  chrome.tabs.sendMessage(tabId, backgroundMessage);
+};
+
+chrome.action.onClicked.addListener(async (tab) => {
+  if (typeof tab.id !== "number") {
+    return;
+  }
+  await annotate({ tabId: tab.id });
+});
+
+chrome.contextMenus.create({
+  id: "annotate",
+  title: "Annotate",
+  contexts: ["page", "selection"],
+});
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== "annotate" || typeof tab?.id !== "number") {
+    return;
+  }
+  await annotate({ tabId: tab.id });
 });
 
 const cleanUpMap = new Map<number, () => void>();
