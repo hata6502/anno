@@ -34,15 +34,52 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
       const selection = getSelection();
       const lines = [];
 
+      if (!existedAnnolink) {
+        lines.push(`[${getAnnolink(getURL())}]`);
+
+        const ogImageElement = window.document.querySelector(
+          'meta[property="og:image" i]'
+        );
+        const ogImageURL =
+          ogImageElement instanceof window.HTMLMetaElement &&
+          ogImageElement.content;
+        if (ogImageURL) {
+          lines.push(`[${ogImageURL}#.png]`);
+        }
+
+        const descriptionElement = window.document.querySelector(
+          'meta[name="description" i]'
+        );
+        const ogDescriptionElement = window.document.querySelector(
+          'meta[property="og:description" i]'
+        );
+        const description =
+          (ogDescriptionElement instanceof window.HTMLMetaElement &&
+            ogDescriptionElement.content) ||
+          (descriptionElement instanceof window.HTMLMetaElement &&
+            descriptionElement.content);
+        if (description) {
+          lines.push(...description.split("\n").map((line) => `> ${line}`));
+        }
+
+        const keywordsElement = window.document.querySelector(
+          'meta[name="keywords" i]'
+        );
+        const keywords =
+          keywordsElement instanceof window.HTMLMetaElement &&
+          keywordsElement.content;
+        if (keywords) {
+          lines.push(keywords);
+        }
+
+        lines.push("");
+      }
+
       if (selection && !selection.isCollapsed && selection.rangeCount >= 1) {
         const textQuoteSelector: TextQuoteSelector = textQuote.fromRange(
           document.body,
           selection.getRangeAt(0)
         );
-
-        if (!existedAnnolink) {
-          lines.push(`[${getAnnolink(getURL())}]`, "");
-        }
 
         lines.push(
           `[${textQuoteSelector.exact
