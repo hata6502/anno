@@ -45,7 +45,7 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
         }
 
         lines.push(
-          `> [${textQuoteSelector.exact
+          `[${textQuoteSelector.exact
             .replaceAll("[", "")
             .replaceAll("]", "")
             .replaceAll("\n", "")} ${getURL()}#${[
