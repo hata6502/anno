@@ -28,155 +28,173 @@ const getURL = () => {
 
 let cleanUpInjections: (() => void) | undefined;
 let existedAnnolink: Link | undefined;
-chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
-  switch (backgroundMessage.type) {
-    case "annotate": {
-      const selection = getSelection();
-      const lines = [];
+chrome.runtime.onMessage.addListener(
+  async (backgroundMessage: BackgroundMessage) => {
+    switch (backgroundMessage.type) {
+      case "annotate": {
+        const selection = getSelection();
+        const lines = [];
 
-      if (!existedAnnolink) {
-        lines.push(`[${getAnnolink(getURL())}]`);
+        if (!existedAnnolink) {
+          lines.push(`[${getAnnolink(getURL())}]`);
 
-        const ogImageElement = window.document.querySelector(
-          'meta[property="og:image" i]'
-        );
-        const ogImageURL =
-          ogImageElement instanceof window.HTMLMetaElement &&
-          ogImageElement.content;
-        if (ogImageURL) {
-          lines.push(`[${ogImageURL}#.png]`);
+          const ogImageElement = window.document.querySelector(
+            'meta[property="og:image" i]'
+          );
+          const ogImageURL =
+            ogImageElement instanceof window.HTMLMetaElement &&
+            ogImageElement.content;
+          if (ogImageURL) {
+            lines.push(`[${ogImageURL}#.png]`);
+          }
+
+          const descriptionElement = window.document.querySelector(
+            'meta[name="description" i]'
+          );
+          const ogDescriptionElement = window.document.querySelector(
+            'meta[property="og:description" i]'
+          );
+          const description =
+            (ogDescriptionElement instanceof window.HTMLMetaElement &&
+              ogDescriptionElement.content) ||
+            (descriptionElement instanceof window.HTMLMetaElement &&
+              descriptionElement.content);
+          if (description) {
+            lines.push(...description.split("\n").map((line) => `> ${line}`));
+          }
+
+          const keywordsElement = window.document.querySelector(
+            'meta[name="keywords" i]'
+          );
+          const keywords =
+            keywordsElement instanceof window.HTMLMetaElement &&
+            keywordsElement.content;
+          if (keywords) {
+            lines.push(keywords);
+          }
+
+          lines.push("");
         }
 
-        const descriptionElement = window.document.querySelector(
-          'meta[name="description" i]'
-        );
-        const ogDescriptionElement = window.document.querySelector(
-          'meta[property="og:description" i]'
-        );
-        const description =
-          (ogDescriptionElement instanceof window.HTMLMetaElement &&
-            ogDescriptionElement.content) ||
-          (descriptionElement instanceof window.HTMLMetaElement &&
-            descriptionElement.content);
-        if (description) {
-          lines.push(...description.split("\n").map((line) => `> ${line}`));
+        if (selection && !selection.isCollapsed && selection.rangeCount >= 1) {
+          const textQuoteSelector: TextQuoteSelector = textQuote.fromRange(
+            document.body,
+            selection.getRangeAt(0)
+          );
+
+          lines.push(
+            `[${textQuoteSelector.exact
+              .replaceAll("[", "")
+              .replaceAll("]", "")
+              .replaceAll("\n", "")} ${getURL()}#${[
+              ...(textQuoteSelector.prefix
+                ? [
+                    `p=${encodeForScrapboxReadableLink(
+                      textQuoteSelector.prefix
+                    )}`,
+                  ]
+                : []),
+              `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
+              ...(textQuoteSelector.suffix
+                ? [
+                    `s=${encodeForScrapboxReadableLink(
+                      textQuoteSelector.suffix
+                    )}`,
+                  ]
+                : []),
+            ].join("&")}]`
+          );
         }
 
-        const keywordsElement = window.document.querySelector(
-          'meta[name="keywords" i]'
-        );
-        const keywords =
-          keywordsElement instanceof window.HTMLMetaElement &&
-          keywordsElement.content;
-        if (keywords) {
-          lines.push(keywords);
-        }
+        const annolink = existedAnnolink ?? { title: document.title };
+        const openMessage: ContentMessage = {
+          type: "open",
+          url: `https://scrapbox.io/${encodeURIComponent(
+            annolink.projectName ?? backgroundMessage.annoProjectName
+          )}/${encodeURIComponent(annolink.title)}?${new URLSearchParams({
+            body: lines.join("\n"),
+          })}`,
+        };
+        chrome.runtime.sendMessage(openMessage);
 
-        lines.push("");
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        prevURL = undefined;
+        checkURLChange();
+        break;
       }
 
-      if (selection && !selection.isCollapsed && selection.rangeCount >= 1) {
-        const textQuoteSelector: TextQuoteSelector = textQuote.fromRange(
-          document.body,
-          selection.getRangeAt(0)
-        );
-
-        lines.push(
-          `[${textQuoteSelector.exact
-            .replaceAll("[", "")
-            .replaceAll("]", "")
-            .replaceAll("\n", "")} ${getURL()}#${[
-            ...(textQuoteSelector.prefix
-              ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
-              : []),
-            `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
-            ...(textQuoteSelector.suffix
-              ? [`s=${encodeForScrapboxReadableLink(textQuoteSelector.suffix)}`]
-              : []),
-          ].join("&")}]`
-        );
-      }
-
-      const annolink = existedAnnolink ?? { title: document.title };
-      const openMessage: ContentMessage = {
-        type: "open",
-        url: `https://scrapbox.io/${encodeURIComponent(
-          annolink.projectName ?? backgroundMessage.annoProjectName
-        )}/${encodeURIComponent(annolink.title)}?${new URLSearchParams({
-          body: lines.join("\n"),
-        })}`,
-      };
-      chrome.runtime.sendMessage(openMessage);
-      existedAnnolink = annolink;
-      break;
-    }
-
-    case "inject": {
-      cleanUpInjections?.();
-      cleanUpInjections = injectByTextQuote(
-        // Reverse to the icon order.
-        [...backgroundMessage.configs]
-          .reverse()
-          .map(({ textQuoteSelector, annotationURL, iconSize }) => ({
-            textQuoteSelector,
-            inject: (range: Range) => {
-              const iframeElement = document.createElement("iframe");
-              iframeElement.src = annotationURL;
-              iframeElement.sandbox.add(
-                "allow-popups",
-                "allow-popups-to-escape-sandbox",
-                "allow-scripts"
-              );
-              iframeElement.style.all = "revert";
-              iframeElement.style.border = "none";
-              iframeElement.style.width = `${iconSize}px`;
-              iframeElement.style.height = `${iconSize}px`;
-              iframeElement.style.marginLeft = "4px";
-              iframeElement.style.marginRight = "4px";
-
-              const clonedRange = range.cloneRange();
-              if (clonedRange.endOffset === 0) {
-                const nodeIterator = document.createNodeIterator(
-                  clonedRange.commonAncestorContainer,
-                  NodeFilter.SHOW_TEXT
+      case "inject": {
+        cleanUpInjections?.();
+        cleanUpInjections = injectByTextQuote(
+          // Reverse to the icon order.
+          [...backgroundMessage.configs]
+            .reverse()
+            .map(({ textQuoteSelector, annotationURL, iconSize }) => ({
+              textQuoteSelector,
+              inject: (range: Range) => {
+                const iframeElement = document.createElement("iframe");
+                iframeElement.src = annotationURL;
+                iframeElement.sandbox.add(
+                  "allow-popups",
+                  "allow-popups-to-escape-sandbox",
+                  "allow-scripts"
                 );
+                iframeElement.style.all = "revert";
+                iframeElement.style.border = "none";
+                iframeElement.style.width = `${iconSize}px`;
+                iframeElement.style.height = `${iconSize}px`;
+                iframeElement.style.marginLeft = "4px";
+                iframeElement.style.marginRight = "4px";
 
-                let prevNode;
-                let currentNode;
-                while ((currentNode = nodeIterator.nextNode())) {
-                  if (prevNode && currentNode === clonedRange.endContainer) {
-                    clonedRange.setEndAfter(prevNode);
-                    break;
+                const clonedRange = range.cloneRange();
+                if (clonedRange.endOffset === 0) {
+                  const nodeIterator = document.createNodeIterator(
+                    clonedRange.commonAncestorContainer,
+                    NodeFilter.SHOW_TEXT
+                  );
+
+                  let prevNode;
+                  let currentNode;
+                  while ((currentNode = nodeIterator.nextNode())) {
+                    if (prevNode && currentNode === clonedRange.endContainer) {
+                      clonedRange.setEndAfter(prevNode);
+                      break;
+                    }
+
+                    prevNode = currentNode;
                   }
-
-                  prevNode = currentNode;
                 }
-              }
 
-              const markElement = document.createElement("mark");
-              markElement.style.all = "revert";
-              markElement.append(clonedRange.extractContents(), iframeElement);
-              clonedRange.insertNode(markElement);
+                const markElement = document.createElement("mark");
+                markElement.style.all = "revert";
+                markElement.append(
+                  clonedRange.extractContents(),
+                  iframeElement
+                );
+                clonedRange.insertNode(markElement);
 
-              return () => {
-                // Remove the mark and iframe element.
-                markElement.after(...[...markElement.childNodes].slice(0, -1));
-                markElement.remove();
-              };
-            },
-          }))
-      );
+                return () => {
+                  // Remove the mark and iframe element.
+                  markElement.after(
+                    ...[...markElement.childNodes].slice(0, -1)
+                  );
+                  markElement.remove();
+                };
+              },
+            }))
+        );
 
-      existedAnnolink = backgroundMessage.existedAnnolink;
-      break;
-    }
+        existedAnnolink = backgroundMessage.existedAnnolink;
+        break;
+      }
 
-    default: {
-      const exhaustiveCheck: never = backgroundMessage;
-      throw new Error(`Unknown message type: ${exhaustiveCheck}`);
+      default: {
+        const exhaustiveCheck: never = backgroundMessage;
+        throw new Error(`Unknown message type: ${exhaustiveCheck}`);
+      }
     }
   }
-});
+);
 
 let highlighted = false;
 const highlight = () => {
