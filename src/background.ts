@@ -302,6 +302,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   });
 };
 
+let annoTabId: number | undefined;
 chrome.runtime.onMessage.addListener(
   async (contentMessage: ContentMessage, sender) => {
     const tabId = sender.tab?.id;
@@ -310,15 +311,33 @@ chrome.runtime.onMessage.addListener(
     }
 
     switch (contentMessage.type) {
+      case "open": {
+        const annoTab = annoTabId && (await tryGetTab(annoTabId));
+        if (annoTab && annoTab.id) {
+          await chrome.tabs.update(annoTab.id, {
+            active: true,
+            url: contentMessage.url,
+          });
+          await chrome.windows.update(annoTab.windowId, { focused: true });
+        } else {
+          const window = await chrome.windows.create({
+            type: "popup",
+            url: contentMessage.url,
+          });
+          annoTabId = window.tabs?.at(0)?.id;
+        }
+        break;
+      }
+
       case "urlChange": {
         await inject({ tabId, url: contentMessage.url });
         break;
       }
 
-      /*default: {
+      default: {
         const exhaustiveCheck: never = contentMessage;
         throw new Error(`Unknown message type: ${exhaustiveCheck}`);
-      }*/
+      }
     }
   }
 );
@@ -329,3 +348,9 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onReplaced.addListener((_addedTabId, removedTabId) => {
   cleanUp({ tabId: removedTabId });
 });
+
+const tryGetTab = async (tabId: number) => {
+  try {
+    return await chrome.tabs.get(tabId);
+  } catch {}
+};

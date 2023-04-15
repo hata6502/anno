@@ -4,7 +4,9 @@ import { BackgroundMessage, Link } from "./background";
 import { TextQuoteSelector, injectByTextQuote } from "./textQuoteInjection";
 import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
-export type ContentMessage = { type: "urlChange"; url: string };
+export type ContentMessage =
+  | { type: "open"; url: string }
+  | { type: "urlChange"; url: string };
 
 const getURL = () => {
   const canonicalLinkElement = document.querySelector(
@@ -26,7 +28,6 @@ const getURL = () => {
 
 let cleanUpInjections: (() => void) | undefined;
 let existedAnnolink: Link | undefined;
-let prevWindow: Window | null = null;
 chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
   switch (backgroundMessage.type) {
     case "annotate": {
@@ -60,14 +61,15 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
       }
 
       const annolink = existedAnnolink ?? { title: document.title };
-      prevWindow?.close();
-      prevWindow = open(
-        `https://scrapbox.io/${encodeURIComponent(
+      const openMessage: ContentMessage = {
+        type: "open",
+        url: `https://scrapbox.io/${encodeURIComponent(
           annolink.projectName ?? backgroundMessage.annoProjectName
         )}/${encodeURIComponent(annolink.title)}?${new URLSearchParams({
           body: lines.join("\n"),
-        })}`
-      );
+        })}`,
+      };
+      chrome.runtime.sendMessage(openMessage);
       existedAnnolink = annolink;
       break;
     }
@@ -137,10 +139,6 @@ chrome.runtime.onMessage.addListener((backgroundMessage: BackgroundMessage) => {
       throw new Error(`Unknown message type: ${exhaustiveCheck}`);
     }
   }
-});
-
-addEventListener("beforeunload", () => {
-  prevWindow?.close();
 });
 
 let highlighted = false;
