@@ -32,11 +32,16 @@ chrome.runtime.onMessage.addListener(
   async (backgroundMessage: BackgroundMessage) => {
     switch (backgroundMessage.type) {
       case "annotate": {
-        const selection = getSelection();
         const lines = [];
 
+        const title = document.title || new Date().toLocaleString();
+
+        const selection = getSelection();
+        const isSelected =
+          selection && !selection.isCollapsed && selection.rangeCount >= 1;
+
         if (!existedAnnolink) {
-          lines.push(`[${getAnnolink(getURL())}]`);
+          lines.push(`[${title} ${getURL()}]`);
 
           const ogImageElement = window.document.querySelector(
             'meta[property="og:image" i]'
@@ -73,10 +78,14 @@ chrome.runtime.onMessage.addListener(
             lines.push(keywords);
           }
 
-          lines.push("");
+          lines.push("", `[${getAnnolink(getURL())}]`);
+
+          if (isSelected) {
+            lines.push("");
+          }
         }
 
-        if (selection && !selection.isCollapsed && selection.rangeCount >= 1) {
+        if (isSelected) {
           const textQuoteSelector: TextQuoteSelector = textQuote.fromRange(
             document.body,
             selection.getRangeAt(0)
@@ -106,7 +115,7 @@ chrome.runtime.onMessage.addListener(
           );
         }
 
-        const annolink = existedAnnolink ?? { title: document.title };
+        const annolink = existedAnnolink ?? { title };
         const openMessage: ContentMessage = {
           type: "open",
           url: `https://scrapbox.io/${encodeURIComponent(
