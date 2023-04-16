@@ -196,12 +196,7 @@ chrome.runtime.onMessage.addListener(
   }
 );
 
-let highlighted = false;
 const highlight = () => {
-  if (highlighted) {
-    return;
-  }
-
   let triedSearchParams;
   try {
     triedSearchParams = new URLSearchParams(location.hash);
@@ -232,7 +227,9 @@ const highlight = () => {
       : range.startContainer.parentElement;
   startElement?.scrollIntoView({ block: "center" });
 
-  highlighted = true;
+  const hashRemovedURL = new URL(location.href);
+  hashRemovedURL.hash = "";
+  history.replaceState(null, "", hashRemovedURL);
 };
 
 let prevURL: string | undefined;
@@ -240,8 +237,6 @@ const checkURLChange = () => {
   if (prevURL !== getURL()) {
     cleanUpInjections?.();
     cleanUpInjections = undefined;
-
-    highlighted = false;
 
     const urlChangeMessage: ContentMessage = {
       type: "urlChange",
