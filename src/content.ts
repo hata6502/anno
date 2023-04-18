@@ -146,14 +146,26 @@ chrome.runtime.onMessage.addListener(
               textQuoteSelector,
               inject: (range: Range) => {
                 const textNodes = [];
+                const clonedRange = range.cloneRange();
+
+                if (clonedRange.startContainer instanceof Text) {
+                  clonedRange.setStart(
+                    clonedRange.startContainer.splitText(
+                      clonedRange.startOffset
+                    ),
+                    0
+                  );
+                  textNodes.push(clonedRange.startContainer);
+                }
+
                 const nodeIterator = document.createNodeIterator(
-                  range.commonAncestorContainer,
+                  clonedRange.commonAncestorContainer,
                   NodeFilter.SHOW_ALL
                 );
                 let currentNode;
                 let isInRange = false;
                 while ((currentNode = nodeIterator.nextNode())) {
-                  if (currentNode === range.endContainer) {
+                  if (currentNode === clonedRange.endContainer) {
                     break;
                   }
 
@@ -161,19 +173,14 @@ chrome.runtime.onMessage.addListener(
                     textNodes.push(currentNode);
                   }
 
-                  if (currentNode === range.startContainer) {
+                  if (currentNode === clonedRange.startContainer) {
                     isInRange = true;
                   }
                 }
 
-                if (range.startContainer instanceof Text) {
-                  textNodes.push(
-                    range.startContainer.splitText(range.startOffset)
-                  );
-                }
-                if (range.endContainer instanceof Text) {
-                  range.endContainer.splitText(range.endOffset);
-                  textNodes.push(range.endContainer);
+                if (clonedRange.endContainer instanceof Text) {
+                  clonedRange.endContainer.splitText(clonedRange.endOffset);
+                  textNodes.push(clonedRange.endContainer);
                 }
 
                 const markElements = textNodes.flatMap((textNode) => {
