@@ -206,8 +206,6 @@ chrome.runtime.onMessage.addListener(
                 iframeElement.style.border = "none";
                 iframeElement.style.width = `${iconSize}px`;
                 iframeElement.style.height = `${iconSize}px`;
-                iframeElement.style.marginLeft = "4px";
-                iframeElement.style.marginRight = "4px";
                 markElements.at(-1)?.after(iframeElement);
 
                 return () => {
