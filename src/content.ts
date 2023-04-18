@@ -92,10 +92,7 @@ chrome.runtime.onMessage.addListener(
           );
 
           lines.push(
-            `[${textQuoteSelector.exact
-              .replaceAll("[", "")
-              .replaceAll("]", "")
-              .replaceAll("\n", "")} ${getURL()}#${[
+            `[🍀 ${getURL()}#${[
               ...(textQuoteSelector.prefix
                 ? [
                     `p=${encodeForScrapboxReadableLink(
@@ -113,8 +110,15 @@ chrome.runtime.onMessage.addListener(
                 : []),
             ].join("&")}]`
           );
+          lines.push(
+            ...textQuoteSelector.exact
+              .trim()
+              .replaceAll(/^ +/gm, "")
+              .replaceAll(/\n{3,}/g, "\n\n")
+              .split("\n")
+              .map((line) => `> ${line}`)
+          );
         }
-
         const annolink = existedAnnolink ?? { title };
         const openMessage: ContentMessage = {
           type: "open",

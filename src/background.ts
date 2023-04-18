@@ -261,6 +261,11 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
           });
         }
 
+        const description = section
+          .slice(1)
+          .flatMap(({ text }) => (/^\s*>/.test(text) ? [] : [text]))
+          .join("\n");
+
         for (const icon of icons) {
           const id = crypto.randomUUID();
           const iconSize = icon.isStrong ? 60 : 20;
@@ -269,10 +274,7 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
             url: `https://scrapbox.io/${encodeURIComponent(
               annopageProject.name
             )}/${encodeURIComponent(annopage.title)}#${section[0].id}`,
-            description: section
-              .slice(1)
-              .map(({ text }) => text)
-              .join("\n"),
+            description,
             iconImageURL: icon.url,
             iconSize,
           });
