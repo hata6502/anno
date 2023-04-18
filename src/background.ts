@@ -190,7 +190,7 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
     sections.push(section);
 
     for (const section of sections) {
-      if (!section.length) {
+      if (section.length < 1) {
         continue;
       }
 
@@ -207,8 +207,13 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
           continue;
         }
 
+        const description = section
+          .slice(1)
+          .flatMap(({ text }) => (/^\s*>/.test(text) ? [] : [text]))
+          .join("\n");
+
         const icons = [];
-        for (const iconExpressionMatch of section[0].text.matchAll(
+        for (const iconExpressionMatch of description.matchAll(
           /(\[?)\[([^\]]+)\.icon(?:\*([1-9]\d*))?\](\]?)/g
         )) {
           const title = iconExpressionMatch[2];
@@ -260,11 +265,6 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
             isStrong: false,
           });
         }
-
-        const description = section
-          .slice(1)
-          .flatMap(({ text }) => (/^\s*>/.test(text) ? [] : [text]))
-          .join("\n");
 
         for (const icon of icons) {
           const id = crypto.randomUUID();
