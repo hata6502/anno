@@ -114,7 +114,7 @@ chrome.runtime.onMessage.addListener(
             ...textQuoteSelector.exact
               .trim()
               .replaceAll(/^ +/gm, "")
-              .replaceAll(/\n{3,}/g, "\n\n")
+              .replaceAll(/\n{2,}/g, "\n")
               .split("\n")
               .map((line) => `> ${line}`)
           );
