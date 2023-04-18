@@ -145,6 +145,49 @@ chrome.runtime.onMessage.addListener(
             .map(({ textQuoteSelector, annotationURL, iconSize }) => ({
               textQuoteSelector,
               inject: (range: Range) => {
+                const textNodes = [];
+                const nodeIterator = document.createNodeIterator(
+                  range.commonAncestorContainer,
+                  NodeFilter.SHOW_ALL
+                );
+                let currentNode;
+                let isInRange = false;
+                while ((currentNode = nodeIterator.nextNode())) {
+                  if (currentNode === range.endContainer) {
+                    break;
+                  }
+
+                  if (isInRange && currentNode instanceof Text) {
+                    textNodes.push(currentNode);
+                  }
+
+                  if (currentNode === range.startContainer) {
+                    isInRange = true;
+                  }
+                }
+
+                if (range.startContainer instanceof Text) {
+                  textNodes.push(
+                    range.startContainer.splitText(range.startOffset)
+                  );
+                }
+                if (range.endContainer instanceof Text) {
+                  range.endContainer.splitText(range.endOffset);
+                  textNodes.push(range.endContainer);
+                }
+
+                const markElements = textNodes.flatMap((textNode) => {
+                  if (!textNode.textContent?.trim()) {
+                    return [];
+                  }
+
+                  const markElement = document.createElement("mark");
+                  markElement.style.all = "revert";
+                  textNode.after(markElement);
+                  markElement.append(textNode);
+                  return [markElement];
+                });
+
                 const iframeElement = document.createElement("iframe");
                 iframeElement.src = annotationURL;
                 iframeElement.sandbox.add(
@@ -158,40 +201,15 @@ chrome.runtime.onMessage.addListener(
                 iframeElement.style.height = `${iconSize}px`;
                 iframeElement.style.marginLeft = "4px";
                 iframeElement.style.marginRight = "4px";
-
-                const clonedRange = range.cloneRange();
-                if (clonedRange.endOffset === 0) {
-                  const nodeIterator = document.createNodeIterator(
-                    clonedRange.commonAncestorContainer,
-                    NodeFilter.SHOW_TEXT
-                  );
-
-                  let prevNode;
-                  let currentNode;
-                  while ((currentNode = nodeIterator.nextNode())) {
-                    if (prevNode && currentNode === clonedRange.endContainer) {
-                      clonedRange.setEndAfter(prevNode);
-                      break;
-                    }
-
-                    prevNode = currentNode;
-                  }
-                }
-
-                const markElement = document.createElement("mark");
-                markElement.style.all = "revert";
-                markElement.append(
-                  clonedRange.extractContents(),
-                  iframeElement
-                );
-                clonedRange.insertNode(markElement);
+                markElements.at(-1)?.after(iframeElement);
 
                 return () => {
-                  // Remove the mark and iframe element.
-                  markElement.after(
-                    ...[...markElement.childNodes].slice(0, -1)
-                  );
-                  markElement.remove();
+                  for (const markElement of markElements) {
+                    markElement.after(...markElement.childNodes);
+                    markElement.remove();
+                  }
+
+                  iframeElement.remove();
                 };
               },
             }))
@@ -248,9 +266,6 @@ const highlight = () => {
 let prevURL: string | undefined;
 const checkURLChange = () => {
   if (prevURL !== getURL()) {
-    cleanUpInjections?.();
-    cleanUpInjections = undefined;
-
     const urlChangeMessage: ContentMessage = {
       type: "urlChange",
       url: getURL(),

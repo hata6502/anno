@@ -39,9 +39,9 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
         nextRange?.endOffset !== currentRange?.endOffset
       ) {
         nextCleanUp?.();
-        nextCleanUp = currentRange ? config.inject(currentRange) : undefined;
+        nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
 
-        // Do not use currentRange because it may be changed by config.inject().
+        nextCleanUp = nextRange ? config.inject(nextRange) : undefined;
         nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
       }
 
