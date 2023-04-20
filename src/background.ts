@@ -29,8 +29,7 @@ export interface Link {
 
 interface InjectionConfig {
   textQuoteSelector: TextQuoteSelector;
-  annotationURL: string;
-  iconSize: number;
+  annotations: { url: string; size: number }[];
 }
 
 interface Project {
@@ -101,7 +100,7 @@ const getAnnolinkOrder = ({
 const iconImageURLCache = new Map<string, Promise<string | null>>();
 const projectCache = new Map<string, Promise<Project | null>>();
 const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
-  const annodataMap = new Map<string, Annodata>();
+  let annodataMap = new Map<string, Annodata>();
   const configs: InjectionConfig[] = [];
 
   const { annoProjectName } = await chrome.storage.sync.get(
@@ -266,11 +265,12 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
           });
         }
 
+        const newAnnodataMap = new Map<string, Annodata>();
         for (const icon of icons) {
           const id = crypto.randomUUID();
           const iconSize = icon.isStrong ? 60 : 20;
 
-          annodataMap.set(id, {
+          newAnnodataMap.set(id, {
             url: `https://scrapbox.io/${encodeURIComponent(
               annopageProject.name
             )}/${encodeURIComponent(annopage.title)}#${section[0].id}`,
@@ -278,20 +278,23 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
             iconImageURL: icon.url,
             iconSize,
           });
+        }
 
-          const config = {
-            textQuoteSelector: {
-              prefix: searchParams.get("p") ?? undefined,
-              exact,
-              suffix: searchParams.get("s") ?? undefined,
-            },
-            annotationURL: `${chrome.runtime.getURL(
+        annodataMap = new Map([...annodataMap, ...newAnnodataMap]);
+
+        configs.push({
+          textQuoteSelector: {
+            prefix: searchParams.get("p") ?? undefined,
+            exact,
+            suffix: searchParams.get("s") ?? undefined,
+          },
+          annotations: [...newAnnodataMap].map(([id, annodata]) => ({
+            url: `${chrome.runtime.getURL(
               "annotation.html"
             )}?${new URLSearchParams({ id })}`,
-            iconSize,
-          };
-          configs.push(config);
-        }
+            size: annodata.iconSize,
+          })),
+        });
       }
     }
   }

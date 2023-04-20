@@ -78,7 +78,7 @@ chrome.runtime.onMessage.addListener(
             lines.push(keywords);
           }
 
-          lines.push("", `[${getAnnolink(getURL())}]`);
+          lines.push(`[${getAnnolink(getURL())}]`);
 
           if (isSelected) {
             lines.push("");
@@ -139,10 +139,8 @@ chrome.runtime.onMessage.addListener(
       case "inject": {
         cleanUpInjections?.();
         cleanUpInjections = injectByTextQuote(
-          // Reverse to the icon order.
-          [...backgroundMessage.configs]
-            .reverse()
-            .map(({ textQuoteSelector, annotationURL, iconSize }) => ({
+          backgroundMessage.configs.map(
+            ({ textQuoteSelector, annotations }) => ({
               textQuoteSelector,
               inject: (range: Range) => {
                 const textNodes = [];
@@ -195,18 +193,24 @@ chrome.runtime.onMessage.addListener(
                   return [markElement];
                 });
 
-                const iframeElement = document.createElement("iframe");
-                iframeElement.src = annotationURL;
-                iframeElement.sandbox.add(
-                  "allow-popups",
-                  "allow-popups-to-escape-sandbox",
-                  "allow-scripts"
-                );
-                iframeElement.style.all = "revert";
-                iframeElement.style.border = "none";
-                iframeElement.style.width = `${iconSize}px`;
-                iframeElement.style.height = `${iconSize}px`;
-                markElements.at(-1)?.after(iframeElement);
+                const iframeElements = annotations.map(({ url, size }) => {
+                  const iframeElement = document.createElement("iframe");
+
+                  iframeElement.src = url;
+                  iframeElement.sandbox.add(
+                    "allow-popups",
+                    "allow-popups-to-escape-sandbox",
+                    "allow-scripts"
+                  );
+
+                  iframeElement.style.all = "revert";
+                  iframeElement.style.border = "none";
+                  iframeElement.style.width = `${size}px`;
+                  iframeElement.style.height = `${size}px`;
+
+                  return iframeElement;
+                });
+                markElements.at(-1)?.after(...iframeElements);
 
                 return () => {
                   for (const markElement of markElements) {
@@ -214,10 +218,13 @@ chrome.runtime.onMessage.addListener(
                     markElement.remove();
                   }
 
-                  iframeElement.remove();
+                  for (const iframeElement of iframeElements) {
+                    iframeElement.remove();
+                  }
                 };
               },
-            }))
+            })
+          )
         );
 
         existedAnnolink = backgroundMessage.existedAnnolink;
