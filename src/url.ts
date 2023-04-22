@@ -1,3 +1,8 @@
+export const annoProtocolMap = new Map([
+  ["http:", "anno:"],
+  ["https:", "annos:"],
+]);
+
 export const encodeForScrapboxReadableLink = (uriComponent: string) => {
   let encoded = encodeURIComponent(uriComponent);
 
@@ -12,11 +17,10 @@ export const encodeForScrapboxReadableLink = (uriComponent: string) => {
 
 export const getAnnolink = (url: string) => {
   const annoURL = new URL(url);
-  // Prevent detection anno page title as external link.
-  annoURL.protocol =
-    new Map([
-      ["http:", "anno:"],
-      ["https:", "annos:"],
-    ]).get(annoURL.protocol) ?? annoURL.protocol;
+  const annoProtocol = annoProtocolMap.get(annoURL.protocol);
+  if (!annoProtocol) {
+    throw new Error(`Unknown protocol: ${annoURL.protocol}`);
+  }
+  annoURL.protocol = annoProtocol;
   return decodeURI(String(annoURL));
 };

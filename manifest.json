@@ -16,14 +16,25 @@
   },
   "content_scripts": [
     {
+      "matches": ["https://scrapbox.io/*"],
+      "js": ["dist/scrapboxContent.js"]
+    },
+    {
       "matches": ["<all_urls>"],
       "js": ["dist/content.js"]
     }
   ],
+  "externally_connectable": {
+    "matches": ["https://scrapbox.io/*"]
+  },
   "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" },
   "options_page": "options.html",
   "permissions": ["contextMenus", "storage", "tabs", "unlimitedStorage"],
   "web_accessible_resources": [
+    {
+      "matches": ["https://scrapbox.io/*"],
+      "resources": ["dist/scrapboxUserScript.js"]
+    },
     {
       "matches": ["<all_urls>"],
       "resources": ["annotation.html"]

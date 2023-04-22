@@ -1,3 +1,5 @@
+import Dotenv from "dotenv-webpack";
+
 const config = {
   mode: "production",
   entry: {
@@ -5,6 +7,8 @@ const config = {
     background: "./src/background.ts",
     content: "./src/content.ts",
     options: "./src/options.ts",
+    scrapboxContent: "./src/scrapboxContent.ts",
+    scrapboxUserScript: "./src/scrapboxUserScript.ts",
   },
   experiments: {
     topLevelAwait: true,
@@ -20,6 +24,7 @@ const config = {
       },
     ],
   },
+  plugins: [new Dotenv()],
   resolve: {
     extensions: [".js", ".jsx", ".ts", ".tsx"],
   },

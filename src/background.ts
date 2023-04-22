@@ -1,5 +1,5 @@
 import PQueue from "p-queue";
-import { ContentMessage, InjectionConfig } from "./content";
+import type { ContentMessage, InjectionConfig } from "./content";
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
 
@@ -9,6 +9,13 @@ const fallbackIconImageURL =
 export type BackgroundMessage =
   | { type: "open"; url: string }
   | { type: "urlChange"; url: string };
+
+export type ExternalBackgroundMessage = {
+  type: "collaborate";
+  projectName: string;
+  pageTitle: string;
+  annolinks: string[];
+};
 
 export interface Annodata {
   url: string;
@@ -117,7 +124,10 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
       .map(({ text }) => text)
       .join("\n")
       .matchAll(/\[(.*?)\]/g),
-  ].map((linkMatch) => linkMatch[1]);
+  ]
+    .map((linkMatch) => linkMatch[1])
+    // Priority is given to links written below.
+    .reverse();
   const annolinks: Link[] = [
     ...annolinkPage.relatedPages.links1hop,
     ...annolinkPage.relatedPages.projectLinks1hop,
@@ -354,6 +364,40 @@ chrome.runtime.onMessage.addListener(
 
       default: {
         const exhaustiveCheck: never = backgroundMessage;
+        throw new Error(`Unknown message type: ${exhaustiveCheck}`);
+      }
+    }
+  }
+);
+
+chrome.runtime.onMessageExternal.addListener(
+  async (externalBackgroundMessage: ExternalBackgroundMessage) => {
+    const { annoProjectName } = await chrome.storage.sync.get(
+      initialStorageValues
+    );
+    if (!annoProjectName) {
+      return;
+    }
+
+    switch (externalBackgroundMessage.type) {
+      case "collaborate": {
+        const body = `[/${externalBackgroundMessage.projectName}/${externalBackgroundMessage.pageTitle}]`;
+
+        for (const annolink of externalBackgroundMessage.annolinks) {
+          await chrome.tabs.create({
+            url: `https://scrapbox.io/${encodeURIComponent(
+              annoProjectName
+            )}/${encodeURIComponent(annolink)}?${new URLSearchParams({
+              body,
+            })}`,
+          });
+        }
+
+        break;
+      }
+
+      default: {
+        const exhaustiveCheck: never = externalBackgroundMessage.type;
         throw new Error(`Unknown message type: ${exhaustiveCheck}`);
       }
     }

@@ -19,6 +19,7 @@
   "devDependencies": {
     "@types/chrome": "^0.0.174",
     "dom-anchor-text-quote": "github:hata6502/dom-anchor-text-quote",
+    "dotenv-webpack": "^8.0.1",
     "p-queue": "^7.3.4",
     "prettier": "^2.5.1",
     "ts-loader": "^9.2.6",

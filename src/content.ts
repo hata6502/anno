@@ -1,6 +1,6 @@
 // @ts-expect-error
 import * as textQuote from "dom-anchor-text-quote";
-import { BackgroundMessage, Link } from "./background";
+import type { BackgroundMessage, Link } from "./background";
 import { TextQuoteSelector, injectByTextQuote } from "./textQuoteInjection";
 import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
@@ -291,8 +291,8 @@ const handleDocumentChange = () => {
   checkURLChange();
   highlight();
 };
-handleDocumentChange();
 const mutationObserver = new MutationObserver(handleDocumentChange);
+handleDocumentChange();
 mutationObserver.observe(document, {
   subtree: true,
   childList: true,

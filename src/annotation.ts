@@ -1,4 +1,4 @@
-import { Annodata, BackgroundMessage } from "./background";
+import type { Annodata, BackgroundMessage } from "./background";
 
 document.body.style.margin = "0px";
 
