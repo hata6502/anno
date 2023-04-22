@@ -1,11 +1,14 @@
 import PQueue from "p-queue";
-import { ContentMessage } from "./content";
-import { TextQuoteSelector } from "./textQuoteInjection";
+import { ContentMessage, InjectionConfig } from "./content";
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
 
 const fallbackIconImageURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
+
+export type BackgroundMessage =
+  | { type: "open"; url: string }
+  | { type: "urlChange"; url: string };
 
 export interface Annodata {
   url: string;
@@ -14,22 +17,9 @@ export interface Annodata {
   iconSize: number;
 }
 
-export type BackgroundMessage =
-  | { type: "annotate"; annoProjectName: string }
-  | {
-      type: "inject";
-      configs: InjectionConfig[];
-      existedAnnolink?: Link;
-    };
-
 export interface Link {
   projectName?: string;
   title: string;
-}
-
-interface InjectionConfig {
-  textQuoteSelector: TextQuoteSelector;
-  annotations: { url: string; size: number }[];
 }
 
 interface Project {
@@ -50,11 +40,11 @@ const annotate = async ({ tabId }: { tabId: number }) => {
     return;
   }
 
-  const backgroundMessage: BackgroundMessage = {
+  const annotateMessage: ContentMessage = {
     type: "annotate",
     annoProjectName,
   };
-  chrome.tabs.sendMessage(tabId, backgroundMessage);
+  chrome.tabs.sendMessage(tabId, annotateMessage);
 };
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -310,12 +300,12 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   });
 
   await chrome.storage.local.set(Object.fromEntries(annodataMap));
-  const backgroundMessage: BackgroundMessage = {
+  const injectMessage: ContentMessage = {
     type: "inject",
     configs,
     existedAnnolink,
   };
-  chrome.tabs.sendMessage(tabId, backgroundMessage);
+  chrome.tabs.sendMessage(tabId, injectMessage);
 
   cleanUpMap.set(tabId, async () => {
     await chrome.storage.local.remove([...annodataMap.keys()]);
@@ -324,25 +314,25 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
 
 let annoTabId: number | undefined;
 chrome.runtime.onMessage.addListener(
-  async (contentMessage: ContentMessage, sender) => {
+  async (backgroundMessage: BackgroundMessage, sender) => {
     const tabId = sender.tab?.id;
     if (!tabId) {
       throw new Error("tabId is empty. ");
     }
 
-    switch (contentMessage.type) {
+    switch (backgroundMessage.type) {
       case "open": {
         const annoTab = annoTabId && (await tryGetTab(annoTabId));
         if (annoTab && annoTab.id) {
           await chrome.tabs.update(annoTab.id, {
             active: true,
-            url: contentMessage.url,
+            url: backgroundMessage.url,
           });
           await chrome.windows.update(annoTab.windowId, { focused: true });
         } else {
           const window = await chrome.windows.create({
             type: "popup",
-            url: contentMessage.url,
+            url: backgroundMessage.url,
           });
           annoTabId = window.tabs?.at(0)?.id;
         }
@@ -350,12 +340,12 @@ chrome.runtime.onMessage.addListener(
       }
 
       case "urlChange": {
-        await inject({ tabId, url: contentMessage.url });
+        await inject({ tabId, url: backgroundMessage.url });
         break;
       }
 
       default: {
-        const exhaustiveCheck: never = contentMessage;
+        const exhaustiveCheck: never = backgroundMessage;
         throw new Error(`Unknown message type: ${exhaustiveCheck}`);
       }
     }

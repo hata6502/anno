@@ -1,4 +1,4 @@
-import { Annodata } from "./background";
+import { Annodata, BackgroundMessage } from "./background";
 
 document.body.style.margin = "0px";
 
@@ -16,6 +16,12 @@ linkElement.href = url;
 linkElement.rel = "noopener";
 linkElement.target = "_blank";
 linkElement.title = description;
+linkElement.addEventListener("click", (event) => {
+  event.preventDefault();
+
+  const openMessage: BackgroundMessage = { type: "open", url };
+  chrome.runtime.sendMessage(openMessage);
+});
 
 const imageElement = document.createElement("img");
 imageElement.src = iconImageURL;
