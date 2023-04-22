@@ -43,7 +43,6 @@ const setStyle = ({ isEnabled }: { isEnabled: boolean }) => {
 
     #${CSS.escape(disabledMenuTitle)} {
       filter: saturate(0%);
-      opacity: 0.5;
       ${isEnabled ? "display: none;" : ""}
     }
   `;
