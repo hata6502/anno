@@ -15,3 +15,11 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: package
+          path: |
+            annotation.html
+            dist
+            icon16.png
+            icon48.png
+            icon128.png
+            manifest.json
+            options.html
