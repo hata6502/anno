@@ -12,7 +12,7 @@ jobs:
       - run: npm ci
 
       - run: npm run build
-        with:
+        env:
           EXTENSION_ID: ${{ vars.EXTENSION_ID }}
 
       - uses: actions/upload-artifact@v3
