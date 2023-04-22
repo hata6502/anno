@@ -179,82 +179,94 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
     sections.push(section);
 
     for (const section of sections) {
-      if (section.length < 1) {
-        continue;
-      }
+      const sectionText = section.map(({ text }) => text).join("\n");
 
-      for (const urlMatch of section[0].text.matchAll(/\[[^\]]*\s(.*?)\]/g)) {
+      const annotations = [
+        ...sectionText.matchAll(/\[[^\]]*\s(.*?)\]/g),
+      ].flatMap((linkExpressionMatch) => {
         let searchParams;
         try {
-          searchParams = new URLSearchParams(new URL(urlMatch[1]).hash);
+          searchParams = new URLSearchParams(
+            new URL(linkExpressionMatch[1]).hash
+          );
         } catch {
-          continue;
+          return [];
         }
 
         const exact = searchParams.get("e");
         if (!exact) {
-          continue;
+          return [];
         }
 
-        const description = section
-          .slice(1)
-          .flatMap(({ text }) => (/^\s*>/.test(text) ? [] : [text]))
-          .join("\n");
+        return [
+          {
+            body: linkExpressionMatch[0],
+            prefix: searchParams.get("p") ?? undefined,
+            exact,
+            suffix: searchParams.get("s") ?? undefined,
+          },
+        ];
+      });
 
-        const icons = [];
-        for (const iconExpressionMatch of description.matchAll(
-          /(\[?)\[([^\]]+)\.icon(?:\*([1-9]\d*))?\](\]?)/g
-        )) {
-          const title = iconExpressionMatch[2];
-          const tower = Number(iconExpressionMatch[3] ?? "1");
-          const isStrong = Boolean(
-            iconExpressionMatch[1] && iconExpressionMatch[4]
-          );
+      let description = sectionText;
+      for (const { body } of annotations) {
+        description = description.replaceAll(body, "");
+      }
 
-          const iconKey = `/${annopageProject.name}/${title}`;
-          let url = await iconImageURLCache.get(iconKey);
-          if (url === undefined) {
-            const iconImageURLPromise = (async () => {
-              const iconResponse = await fetch(
-                `https://scrapbox.io/api/pages/${encodeURIComponent(
-                  annopageProject.name
-                )}/${encodeURIComponent(title)}/icon?followRename`
-              );
-              if (!iconResponse.ok) {
-                console.error(`Failed to fetch icon: ${iconResponse.status}`);
-                return null;
-              }
+      const icons = [];
+      for (const iconExpressionMatch of description.matchAll(
+        /(\[?)\[([^\]]+)\.icon(?:\*([1-9]\d*))?\](\]?)/g
+      )) {
+        const title = iconExpressionMatch[2];
+        const tower = Number(iconExpressionMatch[3] ?? "1");
+        const isStrong = Boolean(
+          iconExpressionMatch[1] && iconExpressionMatch[4]
+        );
 
-              const fileReader = new FileReader();
-              return new Promise<string>(async (resolve) => {
-                fileReader.addEventListener("load", () => {
-                  if (typeof fileReader.result !== "string") {
-                    throw new Error("fileReader result is not string. ");
-                  }
-                  resolve(fileReader.result);
-                });
-                fileReader.readAsDataURL(await iconResponse.blob());
-              });
-            })();
-
-            iconImageURLCache.set(iconKey, iconImageURLPromise);
-            url = await iconImageURLPromise;
-          }
-
-          if (url) {
-            for (const _towerIndex of Array(tower).keys()) {
-              icons.push({ url, isStrong });
+        const iconKey = `/${annopageProject.name}/${title}`;
+        let url = await iconImageURLCache.get(iconKey);
+        if (url === undefined) {
+          const iconImageURLPromise = (async () => {
+            const iconResponse = await fetch(
+              `https://scrapbox.io/api/pages/${encodeURIComponent(
+                annopageProject.name
+              )}/${encodeURIComponent(title)}/icon?followRename`
+            );
+            if (!iconResponse.ok) {
+              console.error(`Failed to fetch icon: ${iconResponse.status}`);
+              return null;
             }
+
+            const fileReader = new FileReader();
+            return new Promise<string>(async (resolve) => {
+              fileReader.addEventListener("load", () => {
+                if (typeof fileReader.result !== "string") {
+                  throw new Error("fileReader result is not string. ");
+                }
+                resolve(fileReader.result);
+              });
+              fileReader.readAsDataURL(await iconResponse.blob());
+            });
+          })();
+
+          iconImageURLCache.set(iconKey, iconImageURLPromise);
+          url = await iconImageURLPromise;
+        }
+
+        if (url) {
+          for (const _towerIndex of Array(tower).keys()) {
+            icons.push({ url, isStrong });
           }
         }
+      }
+      if (!icons.length) {
+        icons.push({
+          url: annopageProject.image ?? fallbackIconImageURL,
+          isStrong: false,
+        });
+      }
 
-        if (!icons.length) {
-          icons.push({
-            url: annopageProject.image ?? fallbackIconImageURL,
-            isStrong: false,
-          });
-        }
-
+      for (const { prefix, exact, suffix } of annotations) {
         const newAnnodataMap = new Map<string, Annodata>();
         for (const icon of icons) {
           const id = crypto.randomUUID();
@@ -273,11 +285,7 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
         annodataMap = new Map([...annodataMap, ...newAnnodataMap]);
 
         configs.push({
-          textQuoteSelector: {
-            prefix: searchParams.get("p") ?? undefined,
-            exact,
-            suffix: searchParams.get("s") ?? undefined,
-          },
+          textQuoteSelector: { prefix, exact, suffix },
           annotations: [...newAnnodataMap].map(([id, annodata]) => ({
             url: `${chrome.runtime.getURL(
               "annotation.html"
