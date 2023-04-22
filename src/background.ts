@@ -376,6 +376,7 @@ chrome.runtime.onMessageExternal.addListener(
       initialStorageValues
     );
     if (!annoProjectName) {
+      chrome.runtime.openOptionsPage();
       return;
     }
 
