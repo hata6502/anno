@@ -8,7 +8,7 @@ if (!EXTENSION_ID) {
 
 // @ts-expect-error
 scrapbox.PageMenu.addMenu({
-  title: "Collaborate anno",
+  title: "Collaborate with anno",
   image: "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png",
   onClick: async () => {
     // @ts-expect-error
