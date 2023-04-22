@@ -1,4 +1,4 @@
-import Dotenv from "dotenv-webpack";
+import webpack from "webpack";
 
 const config = {
   mode: "production",
@@ -24,7 +24,7 @@ const config = {
       },
     ],
   },
-  plugins: [new Dotenv()],
+  plugins: [new webpack.EnvironmentPlugin(["EXTENSION_ID"])],
   resolve: {
     extensions: [".js", ".jsx", ".ts", ".tsx"],
   },
