@@ -126,6 +126,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           annolink.projectName ?? contentMessage.annoProjectName
         )}/${encodeURIComponent(annolink.title)}?${new URLSearchParams({
           body: lines.join("\n"),
+          followRename: "true",
         })}`,
       };
       chrome.runtime.sendMessage(openMessage);

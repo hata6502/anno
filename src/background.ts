@@ -285,7 +285,9 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
           newAnnodataMap.set(id, {
             url: `https://scrapbox.io/${encodeURIComponent(
               annopageProject.name
-            )}/${encodeURIComponent(annopage.title)}#${section[0].id}`,
+            )}/${encodeURIComponent(annopage.title)}?followRename#${
+              section[0].id
+            }`,
             description,
             iconImageURL: icon.url,
             iconSize,
