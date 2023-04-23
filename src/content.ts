@@ -119,11 +119,14 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             .map((line) => `> ${line}`)
         );
       }
-      const annolink = existedAnnolink ?? { title };
+      const annolink = existedAnnolink ?? {
+        projectName: contentMessage.annoProjectName,
+        title,
+      };
       const openMessage: BackgroundMessage = {
         type: "open",
         url: `https://scrapbox.io/${encodeURIComponent(
-          annolink.projectName ?? contentMessage.annoProjectName
+          annolink.projectName
         )}/${encodeURIComponent(annolink.title)}?${new URLSearchParams({
           body: lines.join("\n"),
           followRename: "true",

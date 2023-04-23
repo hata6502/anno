@@ -25,7 +25,7 @@ export interface Annodata {
 }
 
 export interface Link {
-  projectName?: string;
+  projectName: string;
   title: string;
 }
 
@@ -79,21 +79,6 @@ const cleanUp = ({ tabId }: { tabId: number }) => {
   cleanUpMap.delete(tabId);
 };
 
-const getAnnolinkOrder = ({
-  annolink,
-  referencingLinks,
-}: {
-  annolink: Link;
-  referencingLinks: string[];
-}) => {
-  const index = referencingLinks.indexOf(
-    `${annolink.projectName ? `/${annolink.projectName}/` : ""}${
-      annolink.title
-    }`
-  );
-  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
-};
-
 const iconImageURLCache = new Map<string, Promise<string | null>>();
 const projectCache = new Map<string, Promise<Project | null>>();
 const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
@@ -118,34 +103,38 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
   }
   const annolinkPage = await annolinkResponse.json();
 
-  const referencingLinks = [
-    ...annolinkPage.lines
-      // @ts-expect-error
-      .map(({ text }) => text)
-      .join("\n")
-      .matchAll(/\[(.*?)\]/g),
-  ]
-    .map((linkMatch) => linkMatch[1])
-    // Priority is given to links written below.
-    .reverse();
+  const annolinkPageText = annolinkPage.lines
+    // @ts-expect-error
+    .map(({ text }) => text)
+    .join("\n");
   const annolinks: Link[] = [
-    ...annolinkPage.relatedPages.links1hop,
-    ...annolinkPage.relatedPages.projectLinks1hop,
-  ].sort(
-    (a, b) =>
-      getAnnolinkOrder({ annolink: a, referencingLinks }) -
-      getAnnolinkOrder({ annolink: b, referencingLinks })
-  );
+    ...new Set(
+      [
+        ...annolinkPage.links,
+        ...annolinkPage.projectLinks,
+        // @ts-expect-error
+        ...annolinkPage.relatedPages.links1hop.map(({ title }) => title),
+      ].sort(
+        (a, b) =>
+          annolinkPageText.indexOf(`[${b}]`) -
+          annolinkPageText.indexOf(`[${a}]`)
+      )
+    ),
+  ].map((link) => {
+    const paths = link.split("/");
+    return link.startsWith("/")
+      ? { projectName: paths[1], title: paths.slice(2).join("/") }
+      : { projectName: annoProjectName, title: link };
+  });
   const existedAnnolink = annolinks.at(0);
 
   for (const annolink of annolinks) {
-    const annopageProjectName = annolink.projectName ?? annoProjectName;
-    let annopageProject = await projectCache.get(annopageProjectName);
+    let annopageProject = await projectCache.get(annolink.projectName);
     if (annopageProject === undefined) {
       const projectPromise = (async () => {
         const projectAPIResponse = await queuedFetch(
           `https://scrapbox.io/api/projects/${encodeURIComponent(
-            annopageProjectName
+            annolink.projectName
           )}`
         );
         if (!projectAPIResponse.ok) {
@@ -158,7 +147,7 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
         return project as Project;
       })();
 
-      projectCache.set(annopageProjectName, projectPromise);
+      projectCache.set(annolink.projectName, projectPromise);
       annopageProject = await projectPromise;
     }
     if (!annopageProject) {
