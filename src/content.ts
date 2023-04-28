@@ -235,9 +235,9 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               );
 
               const viewportTop =
-                ((scrollY + top) / document.body.clientHeight) * innerHeight;
+                ((scrollY + top) / document.body.scrollHeight) * innerHeight;
               const viewportBottom =
-                ((scrollY + bottom) / document.body.clientHeight) * innerHeight;
+                ((scrollY + bottom) / document.body.scrollHeight) * innerHeight;
 
               barmapElement.style.top = `${viewportTop}px`;
               barmapElement.style.height = `${Math.max(
