@@ -214,6 +214,37 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             });
             markElements.at(-1)?.after(...iframeElements);
 
+            const barmapElement = document.createElement("div");
+            barmapElement.style.all = "revert";
+            barmapElement.style.position = "fixed";
+            barmapElement.style.right = "0";
+            barmapElement.style.width = "16px";
+            barmapElement.style.background = "rgba(91, 165, 111, 0.5)";
+            barmapElement.style.pointerEvents = "none";
+            barmapElement.style.zIndex = "2147483647";
+            document.body.append(barmapElement);
+
+            const handleResize = () => {
+              const domRects = [...markElements, ...iframeElements].map(
+                (element) => element.getBoundingClientRect()
+              );
+
+              const top = Math.min(...domRects.map((domRect) => domRect.top));
+              const bottom = Math.max(
+                ...domRects.map((domRect) => domRect.bottom)
+              );
+
+              const viewportTop =
+                ((scrollY + top) / document.body.clientHeight) * innerHeight;
+              const viewportBottom =
+                ((scrollY + bottom) / document.body.clientHeight) * innerHeight;
+
+              barmapElement.style.top = `${viewportTop}px`;
+              barmapElement.style.height = `${viewportBottom - viewportTop}px`;
+            };
+            handleResize();
+            addEventListener("resize", handleResize);
+
             return () => {
               for (const markElement of markElements) {
                 markElement.after(...markElement.childNodes);
@@ -223,6 +254,9 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               for (const iframeElement of iframeElements) {
                 iframeElement.remove();
               }
+
+              barmapElement.remove();
+              removeEventListener("resize", handleResize);
             };
           },
         }))
