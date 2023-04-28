@@ -240,7 +240,10 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 ((scrollY + bottom) / document.body.clientHeight) * innerHeight;
 
               barmapElement.style.top = `${viewportTop}px`;
-              barmapElement.style.height = `${viewportBottom - viewportTop}px`;
+              barmapElement.style.height = `${Math.max(
+                viewportBottom - viewportTop,
+                4
+              )}px`;
             };
             handleResize();
             addEventListener("resize", handleResize);
