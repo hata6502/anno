@@ -224,7 +224,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             barmapElement.style.zIndex = "2147483647";
             document.body.append(barmapElement);
 
-            const handleResize = () => {
+            const handleScroll = () => {
               const domRects = [...markElements, ...iframeElements].map(
                 (element) => element.getBoundingClientRect()
               );
@@ -245,8 +245,8 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 4
               )}px`;
             };
-            handleResize();
-            addEventListener("resize", handleResize);
+            handleScroll();
+            addEventListener("scroll", handleScroll);
 
             return () => {
               for (const markElement of markElements) {
@@ -259,7 +259,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
 
               barmapElement.remove();
-              removeEventListener("resize", handleResize);
+              removeEventListener("scroll", handleScroll);
             };
           },
         }))
