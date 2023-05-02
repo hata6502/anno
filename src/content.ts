@@ -213,10 +213,14 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               clonedRange.commonAncestorContainer instanceof Element
                 ? clonedRange.commonAncestorContainer
                 : clonedRange.commonAncestorContainer.parentElement;
-            while (
-              ancestorElement &&
-              ancestorElement.clientHeight >= ancestorElement.scrollHeight
-            ) {
+            while (ancestorElement) {
+              if (!ancestorElement.scrollTop) {
+                ancestorElement.scrollTop = 1;
+              }
+              if (ancestorElement.scrollTop) {
+                break;
+              }
+
               ancestorElement = ancestorElement.parentElement;
             }
             const scrollableAncestorElement =
