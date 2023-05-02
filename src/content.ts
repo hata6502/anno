@@ -26,12 +26,7 @@ const getURL = () => {
       canonicalLinkElement.href) ||
       location.href
   );
-
-  url.searchParams.delete("p");
-  url.searchParams.delete("e");
-  url.searchParams.delete("s");
   url.hash = "";
-
   return String(url);
 };
 
