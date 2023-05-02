@@ -214,17 +214,34 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             });
             markElements.at(-1)?.after(...iframeElements);
 
+            let ancestorElement =
+              clonedRange.commonAncestorContainer instanceof Element
+                ? clonedRange.commonAncestorContainer
+                : clonedRange.commonAncestorContainer.parentElement;
+            while (
+              ancestorElement &&
+              ancestorElement.clientHeight >= ancestorElement.scrollHeight
+            ) {
+              ancestorElement = ancestorElement.parentElement;
+            }
+            const scrollableAncestorElement =
+              ancestorElement ?? document.documentElement;
+
+            const barmapWidth = 16;
             const barmapElement = document.createElement("div");
             barmapElement.style.all = "revert";
             barmapElement.style.position = "fixed";
-            barmapElement.style.right = "0";
-            barmapElement.style.width = "16px";
+            barmapElement.style.width = `${barmapWidth}px`;
             barmapElement.style.background = "rgba(91, 165, 111, 0.5)";
             barmapElement.style.pointerEvents = "none";
             barmapElement.style.zIndex = "2147483647";
             document.body.append(barmapElement);
 
             const handleScroll = () => {
+              const scrollableAncestorDOMRect =
+                scrollableAncestorElement === document.documentElement
+                  ? new DOMRect()
+                  : scrollableAncestorElement.getBoundingClientRect();
               const domRects = [...markElements, ...iframeElements].map(
                 (element) => element.getBoundingClientRect()
               );
@@ -234,19 +251,32 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 ...domRects.map((domRect) => domRect.bottom)
               );
 
-              const viewportTop =
-                ((scrollY + top) / document.body.scrollHeight) * innerHeight;
-              const viewportBottom =
-                ((scrollY + bottom) / document.body.scrollHeight) * innerHeight;
+              const clientTop =
+                ((scrollableAncestorElement.scrollTop +
+                  (top - scrollableAncestorDOMRect.top)) /
+                  scrollableAncestorElement.scrollHeight) *
+                scrollableAncestorElement.clientHeight;
+              const clientBottom =
+                ((scrollableAncestorElement.scrollTop +
+                  (bottom - scrollableAncestorDOMRect.top)) /
+                  scrollableAncestorElement.scrollHeight) *
+                scrollableAncestorElement.clientHeight;
 
-              barmapElement.style.top = `${viewportTop}px`;
+              barmapElement.style.left = `${
+                scrollableAncestorDOMRect.left +
+                scrollableAncestorElement.clientWidth -
+                barmapWidth
+              }px`;
+              barmapElement.style.top = `${
+                scrollableAncestorDOMRect.top + clientTop
+              }px`;
               barmapElement.style.height = `${Math.max(
-                viewportBottom - viewportTop,
+                clientBottom - clientTop,
                 4
               )}px`;
             };
             handleScroll();
-            addEventListener("scroll", handleScroll);
+            addEventListener("scroll", handleScroll, true);
 
             return () => {
               for (const markElement of markElements) {
@@ -259,7 +289,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
 
               barmapElement.remove();
-              removeEventListener("scroll", handleScroll);
+              removeEventListener("scroll", handleScroll, true);
             };
           },
         }))
