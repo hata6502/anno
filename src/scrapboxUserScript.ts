@@ -45,6 +45,7 @@ const setStyle = ({ isCollaboratable }: { isCollaboratable: boolean }) => {
     }
   `;
 };
+setStyle({ isCollaboratable: false });
 
 let collaborateMessage: ExternalBackgroundMessage | undefined;
 const checkCollaboratable = async () => {
