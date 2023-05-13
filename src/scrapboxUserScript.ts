@@ -27,9 +27,7 @@ scrapbox.PageMenu.addMenu({
   title: disabledMenuTitle,
   image: annoImageURL,
   onClick: () => {
-    open(
-      "https://scrapbox.io/anno/Can't_Collaborate_with_anno_because_this_Scrapbox_page_has_no_annolinks."
-    );
+    open("https://help.hata6502.com/--645f907ca0871c001cf70daf");
   },
 });
 
