@@ -10,6 +10,7 @@ export interface TextQuoteSelector {
 }
 
 export interface TextQuoteInjectionConfig {
+  id: string;
   textQuoteSelector: TextQuoteSelector;
   inject: (match: Range) => CleanUpTextQuoteInjection;
 }
@@ -20,51 +21,56 @@ interface Injection {
   range?: Range;
 }
 
-export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
-  let injections: Injection[] = configs.map((config) => ({ config }));
-
-  const inject = () => {
-    injections = injections.map(({ config, cleanUp, range }) => {
-      let nextCleanUp = cleanUp;
-      let nextRange = range;
-
-      const currentRange: Range | undefined = textQuote.toRange(
-        document.body,
-        config.textQuoteSelector
-      );
-      if (
-        nextRange?.startContainer !== currentRange?.startContainer ||
-        nextRange?.startOffset !== currentRange?.startOffset ||
-        nextRange?.endContainer !== currentRange?.endContainer ||
-        nextRange?.endOffset !== currentRange?.endOffset
-      ) {
-        nextCleanUp?.();
-        nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
-
-        nextCleanUp = nextRange ? config.inject(nextRange) : undefined;
-        nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
-      }
-
-      return { config, cleanUp: nextCleanUp, range: nextRange };
-    });
-  };
-
-  const handleMutation = () => {
-    mutationObserver.disconnect();
-    inject();
-    mutationObserver.observe(document.body, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-    });
-  };
-  const mutationObserver = new MutationObserver(handleMutation);
-  handleMutation();
-
-  return () => {
-    mutationObserver.disconnect();
-    for (const { cleanUp } of injections) {
-      cleanUp?.();
+export const injectByTextQuote = (nextConfigs: TextQuoteInjectionConfig[]) => {
+  const nextConfigIDs = nextConfigs.map(({ id }) => id);
+  for (const { config, cleanUp } of injections) {
+    if (nextConfigIDs.includes(config.id)) {
+      continue;
     }
-  };
+
+    cleanUp?.();
+  }
+
+  injections = nextConfigs.map((nextConfig) => ({
+    ...injections.find(({ config }) => config.id === nextConfig.id),
+    config: nextConfig,
+  }));
+
+  handleMutation();
 };
+
+let injections: Injection[] = [];
+const handleMutation = () => {
+  mutationObserver.disconnect();
+
+  injections = injections.map(({ config, cleanUp, range }) => {
+    let nextCleanUp = cleanUp;
+    let nextRange = range;
+
+    const currentRange: Range | undefined = textQuote.toRange(
+      document.body,
+      config.textQuoteSelector
+    );
+    if (
+      nextRange?.startContainer !== currentRange?.startContainer ||
+      nextRange?.startOffset !== currentRange?.startOffset ||
+      nextRange?.endContainer !== currentRange?.endContainer ||
+      nextRange?.endOffset !== currentRange?.endOffset
+    ) {
+      nextCleanUp?.();
+      nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
+
+      nextCleanUp = nextRange ? config.inject(nextRange) : undefined;
+      nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
+    }
+
+    return { config, cleanUp: nextCleanUp, range: nextRange };
+  });
+
+  mutationObserver.observe(document.body, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+};
+const mutationObserver = new MutationObserver(handleMutation);

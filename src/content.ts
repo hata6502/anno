@@ -30,7 +30,6 @@ const getURL = () => {
   return String(url);
 };
 
-let cleanUpInjections: (() => void) | undefined;
 let existedAnnolink: Link | undefined;
 chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   switch (contentMessage.type) {
@@ -136,10 +135,10 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
     }
 
     case "inject": {
-      cleanUpInjections?.();
-      cleanUpInjections = injectByTextQuote(
-        contentMessage.configs.map(({ textQuoteSelector, annotations }) => ({
-          textQuoteSelector,
+      injectByTextQuote(
+        contentMessage.configs.map((config) => ({
+          id: JSON.stringify(config),
+          textQuoteSelector: config.textQuoteSelector,
           inject: (range: Range) => {
             const textNodes = [];
             const clonedRange = range.cloneRange();
@@ -189,7 +188,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               return [markElement];
             });
 
-            const iframeElements = annotations.map(({ url, size }) => {
+            const iframeElements = config.annotations.map(({ url, size }) => {
               const iframeElement = document.createElement("iframe");
 
               iframeElement.src = url;

@@ -268,10 +268,7 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
       for (const { prefix, exact, suffix } of annotations) {
         const newAnnodataMap = new Map<string, Annodata>();
         for (const icon of icons) {
-          const id = crypto.randomUUID();
-          const iconSize = icon.isStrong ? 60 : 20;
-
-          newAnnodataMap.set(id, {
+          const annodata = {
             url: `https://scrapbox.io/${encodeURIComponent(
               annopageProject.name
             )}/${encodeURIComponent(annopage.title)}?followRename#${
@@ -279,8 +276,21 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
             }`,
             description,
             iconImageURL: icon.url,
-            iconSize,
-          });
+            iconSize: icon.isStrong ? 60 : 20,
+          };
+
+          const id = [
+            ...new Uint8Array(
+              await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(JSON.stringify(annodata))
+              )
+            ),
+          ]
+            .map((uint8) => uint8.toString(16).padStart(2, "0"))
+            .join("");
+
+          newAnnodataMap.set(id, annodata);
         }
 
         annodataMap = new Map([...annodataMap, ...newAnnodataMap]);
