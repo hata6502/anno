@@ -35,54 +35,89 @@ scrapbox.PageMenu.addMenu({
 
 const styleElement = document.createElement("style");
 document.head.append(styleElement);
-const setStyle = ({ isEnabled }: { isEnabled: boolean }) => {
+const setStyle = ({ isCollaboratable }: { isCollaboratable: boolean }) => {
   styleElement.textContent = `
     #${CSS.escape(menuTitle)} {
-      ${isEnabled ? "" : "display: none;"}
+      ${isCollaboratable ? "" : "display: none;"}
     }
 
     #${CSS.escape(disabledMenuTitle)} {
       filter: saturate(0%);
-      ${isEnabled ? "display: none;" : ""}
+      ${isCollaboratable ? "display: none;" : ""}
     }
   `;
 };
-setStyle({ isEnabled: false });
 
 let collaborateMessage: ExternalBackgroundMessage | undefined;
-const fetchAnnolinks = async () => {
-  // @ts-expect-error
-  const projectName = scrapbox.Project.name;
+const checkCollaboratable = async () => {
   // @ts-expect-error
   const pageTitle = scrapbox.Page.title;
   if (!pageTitle) {
     return;
   }
 
-  const pageResponse = await fetch(
-    `https://scrapbox.io/api/pages/${encodeURIComponent(
-      projectName
-    )}/${encodeURIComponent(pageTitle)}`
-  );
-  if (!pageResponse.ok) {
-    throw new Error(`Failed to fetch page: ${pageResponse.status}`);
-  }
-  const page = await pageResponse.json();
+  const annolinks: string[] = [];
+  JSON.stringify(
+    // @ts-expect-error
+    scrapbox.Page.lines,
+    (_key, value: unknown) => {
+      const annolink = extractAnnolink(value);
+      if (annolink) {
+        annolinks.push(annolink);
+      }
 
-  const annolinks = page.links.filter((link: string) =>
-    [...annoProtocolMap].some(([, annoProtocol]) =>
-      link.startsWith(annoProtocol)
-    )
+      return value;
+    }
   );
+  const uniqueAnnolinks = [...new Set(annolinks)];
 
   collaborateMessage = {
     type: "collaborate",
-    projectName,
+    // @ts-expect-error
+    projectName: scrapbox.Project.name,
     pageTitle,
-    annolinks,
+    annolinks: uniqueAnnolinks,
   };
-  setStyle({ isEnabled: Boolean(annolinks.length) });
+  setStyle({ isCollaboratable: Boolean(uniqueAnnolinks.length) });
 };
-fetchAnnolinks();
+checkCollaboratable();
 // @ts-expect-error
-scrapbox.on("page:changed", fetchAnnolinks);
+scrapbox.on("lines:changed", checkCollaboratable);
+// @ts-expect-error
+scrapbox.on("page:changed", checkCollaboratable);
+
+const extractAnnolink = (value: unknown) => {
+  if (typeof value !== "object" || value === null) {
+    return;
+  }
+
+  if (!("type" in value) || value.type !== "link") {
+    return;
+  }
+  if (
+    !("unit" in value) ||
+    typeof value.unit !== "object" ||
+    value.unit === null
+  ) {
+    return;
+  }
+  const { unit } = value;
+
+  if ("project" in unit) {
+    return;
+  }
+  if (!("page" in unit) || typeof unit.page !== "string") {
+    return;
+  }
+  const { page } = unit;
+
+  if (
+    [...annoProtocolMap].every(
+      ([, annoProtocol]) => !page.startsWith(annoProtocol)
+    )
+  ) {
+    return;
+  }
+
+  return page;
+};
