@@ -355,7 +355,7 @@ const checkURLChange = () => {
 setInterval(() => {
   prevURL = undefined;
   checkURLChange();
-}, 60000);
+}, 30000);
 
 const handleDocumentChange = () => {
   checkURLChange();
