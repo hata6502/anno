@@ -73,12 +73,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await annotate({ tabId: tab.id });
 });
 
-const cleanUpMap = new Map<number, () => void>();
-const cleanUp = ({ tabId }: { tabId: number }) => {
-  cleanUpMap.get(tabId)?.();
-  cleanUpMap.delete(tabId);
-};
-
 const iconImageURLCache = new Map<string, Promise<string | null>>();
 const projectCache = new Map<string, Promise<Project | null>>();
 const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
@@ -312,8 +306,6 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
 };
 
 const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
-  cleanUp({ tabId });
-
   const { annodataMap, configs, existedAnnolink } = await fetchAnnodata({
     annolink: getAnnolink(url),
   });
@@ -325,11 +317,12 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     existedAnnolink,
   };
   chrome.tabs.sendMessage(tabId, injectMessage);
-
-  cleanUpMap.set(tabId, async () => {
-    await chrome.storage.local.remove([...annodataMap.keys()]);
-  });
 };
+
+chrome.runtime.onStartup.addListener(async () => {
+  // Clear annodata.
+  await chrome.storage.local.clear();
+});
 
 let annoTabId: number | undefined;
 chrome.runtime.onMessage.addListener(
@@ -405,13 +398,6 @@ chrome.runtime.onMessageExternal.addListener(
     }
   }
 );
-
-chrome.tabs.onRemoved.addListener((tabId) => {
-  cleanUp({ tabId });
-});
-chrome.tabs.onReplaced.addListener((_addedTabId, removedTabId) => {
-  cleanUp({ tabId: removedTabId });
-});
 
 const tryGetTab = async (tabId: number) => {
   try {
