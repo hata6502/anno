@@ -352,7 +352,13 @@ const checkURLChange = () => {
 
   prevURL = getURL();
 };
+
 setInterval(() => {
+  // @ts-expect-error
+  if (!navigator.userActivation.isActive) {
+    return;
+  }
+
   prevURL = undefined;
   checkURLChange();
 }, 30000);
