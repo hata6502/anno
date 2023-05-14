@@ -22,5 +22,5 @@ export const getAnnolink = (url: string) => {
     throw new Error(`Unknown protocol: ${annoURL.protocol}`);
   }
   annoURL.protocol = annoProtocol;
-  return decodeURI(String(annoURL));
+  return String(annoURL);
 };

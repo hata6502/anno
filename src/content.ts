@@ -80,7 +80,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           lines.push(keywords);
         }
 
-        lines.push(`[${getAnnolink(getURL())}]`);
+        lines.push(`[${decodeURI(getAnnolink(getURL()))}]`);
 
         if (isSelected) {
           lines.push("");
@@ -307,7 +307,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 const highlight = () => {
   let triedSearchParams;
   try {
-    triedSearchParams = new URLSearchParams(location.hash);
+    triedSearchParams = new URLSearchParams(location.hash.slice(1));
   } catch {
     return;
   }
