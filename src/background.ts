@@ -75,7 +75,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 const iconImageURLCache = new Map<string, Promise<string | null>>();
 const projectCache = new Map<string, Promise<Project | null>>();
-const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
+const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
+  const annolink = getAnnolink(url);
+
   let annodataMap = new Map<string, Annodata>();
   const configs: InjectionConfig[] = [];
 
@@ -83,7 +85,12 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
     initialStorageValues
   );
   if (!annoProjectName) {
-    return { annodataMap, configs };
+    await sendAnnodata({
+      tabId,
+      annodataMap,
+      configs,
+    });
+    return;
   }
 
   const annolinkResponse = await queuedFetch(
@@ -93,7 +100,13 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
   );
   if (!annolinkResponse.ok) {
     console.error(`Failed to fetch page: ${annolinkResponse.status}`);
-    return { annodataMap, configs };
+
+    await sendAnnodata({
+      tabId,
+      annodataMap,
+      configs,
+    });
+    return;
   }
   const annolinkPage = await annolinkResponse.json();
 
@@ -120,7 +133,17 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
       ? { projectName: paths[1], title: paths.slice(2).join("/") }
       : { projectName: annoProjectName, title: link };
   });
+
   const existedAnnolink = annolinks.at(0);
+  if (!existedAnnolink) {
+    await sendAnnodata({
+      tabId,
+      annodataMap,
+      configs,
+      existedAnnolink,
+    });
+    return;
+  }
 
   for (const annolink of annolinks) {
     let annopageProject = await projectCache.get(annolink.projectName);
@@ -300,17 +323,29 @@ const fetchAnnodata = async ({ annolink }: { annolink: string }) => {
         });
       }
     }
-  }
 
-  return { annodataMap, configs, existedAnnolink };
+    await sendAnnodata({
+      tabId,
+      annodataMap,
+      configs,
+      existedAnnolink,
+    });
+  }
 };
 
-const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
-  const { annodataMap, configs, existedAnnolink } = await fetchAnnodata({
-    annolink: getAnnolink(url),
-  });
-
+const sendAnnodata = async ({
+  tabId,
+  annodataMap,
+  configs,
+  existedAnnolink,
+}: {
+  tabId: number;
+  annodataMap: Map<string, Annodata>;
+  configs: InjectionConfig[];
+  existedAnnolink?: Link;
+}) => {
   await chrome.storage.local.set(Object.fromEntries(annodataMap));
+
   const injectMessage: ContentMessage = {
     type: "inject",
     configs,
