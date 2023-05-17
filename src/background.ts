@@ -34,6 +34,11 @@ interface Annopage {
   configs: InjectionConfig[];
 }
 
+interface InjectionData {
+  annopageMap: Map<string, Annopage>;
+  existedAnnolink?: Link;
+}
+
 interface Project {
   name: string;
   image?: string;
@@ -78,11 +83,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await annotate({ tabId: tab.id });
 });
 
-const iconImageURLCache = new Map<string, Promise<string | null>>();
-const projectCache = new Map<string, Promise<Project | null>>();
+const prevInjectionDataMap = new Map<string, InjectionData>();
 const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
-  const annopageMap = new Map<string, Annopage>();
-  let existedAnnolink;
+  const prevInjectionData = prevInjectionDataMap.get(url);
+  const annopageMap = new Map(prevInjectionData?.annopageMap);
+  let existedAnnolink = prevInjectionData?.existedAnnolink;
 
   const { annoProjectName } = await chrome.storage.sync.get(
     initialStorageValues
@@ -97,6 +102,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     annolinks.push(decodeURI(annolinkPaths.join("/")));
   } while (annolinkPaths.pop());
 
+  const nextAnnopageIDs = [];
   for (const [annolinkIndex, annolink] of annolinks.entries()) {
     const annolinkPageResponse = await queuedFetch(
       `https://scrapbox.io/api/pages/${encodeURIComponent(
@@ -144,15 +150,34 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
 
       const [annopageID, annopage] = annopageEntry;
       annopageMap.set(annopageID, annopage);
-      await sendAnnopage({
+      nextAnnopageIDs.push(annopageID);
+      await sendInjectionData({
         tabId,
-        annopageMap,
-        existedAnnolink,
+        injectionData: { annopageMap, existedAnnolink },
       });
     }
   }
+
+  for (const [annopageID] of annopageMap) {
+    if (nextAnnopageIDs.includes(annopageID)) {
+      continue;
+    }
+
+    annopageMap.delete(annopageID);
+  }
+  await sendInjectionData({
+    tabId,
+    injectionData: { annopageMap, existedAnnolink },
+  });
+
+  prevInjectionDataMap.set(url, {
+    annopageMap,
+    existedAnnolink,
+  });
 };
 
+const iconImageURLCache = new Map<string, Promise<string | null>>();
+const projectCache = new Map<string, Promise<Project | null>>();
 const fetchAnnopage = async ({
   annopageLink,
 }: {
@@ -339,15 +364,15 @@ const fetchAnnopage = async ({
   return [annopage.id, { annodataMap, configs }];
 };
 
-const sendAnnopage = async ({
+const sendInjectionData = async ({
   tabId,
-  annopageMap,
-  existedAnnolink,
+  injectionData,
 }: {
   tabId: number;
-  annopageMap: Map<string, Annopage>;
-  existedAnnolink?: Link;
+  injectionData: InjectionData;
 }) => {
+  const { annopageMap, existedAnnolink } = injectionData;
+
   await chrome.storage.local.set(
     Object.fromEntries(
       [...annopageMap].flatMap(([, { annodataMap }]) => [...annodataMap])
