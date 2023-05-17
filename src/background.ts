@@ -85,6 +85,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await annotate({ tabId: tab.id });
 });
 
+const annopageEntriesPromiseCache = new Map<
+  string,
+  {
+    value: Promise<[string, Annopage][]>;
+    storedAt: Date;
+  }
+>();
 const prevInjectionDataMap = new Map<string, InjectionData>();
 const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   const prevInjectionData = prevInjectionDataMap.get(url);
@@ -106,10 +113,32 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
 
   const annopageIDs = [];
   for (const [annolinkIndex, annolink] of annolinks.entries()) {
-    const annopageEntries = await fetchAnnopagesByAnnolink({
+    const annopageEntriesPromiseKey = JSON.stringify({
       annoProjectName,
       annolink,
     });
+    const annopageEntriesPromiseMaxAgeMS = annolinkIndex ? 3 * 60 * 1000 : 0;
+    let annopageEntriesPromise = annopageEntriesPromiseCache.get(
+      annopageEntriesPromiseKey
+    );
+    if (
+      !annopageEntriesPromise ||
+      new Date().getTime() - annopageEntriesPromise.storedAt.getTime() >=
+        annopageEntriesPromiseMaxAgeMS
+    ) {
+      annopageEntriesPromise = {
+        value: fetchAnnopagesByAnnolink({
+          annoProjectName,
+          annolink,
+        }),
+        storedAt: new Date(),
+      };
+      annopageEntriesPromiseCache.set(
+        annopageEntriesPromiseKey,
+        annopageEntriesPromise
+      );
+    }
+    const annopageEntries = await annopageEntriesPromise.value;
 
     for (const [annopageID, annopage] of annopageEntries) {
       annopageMap.set(annopageID, annopage);
