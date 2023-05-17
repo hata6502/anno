@@ -88,11 +88,6 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     initialStorageValues
   );
   if (!annoProjectName) {
-    await sendAnnopage({
-      tabId,
-      annopageMap,
-      existedAnnolink,
-    });
     return;
   }
 
@@ -102,11 +97,6 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     annolinks.push(decodeURI(annolinkPaths.join("/")));
   } while (annolinkPaths.pop());
 
-  await sendAnnopage({
-    tabId,
-    annopageMap,
-    existedAnnolink,
-  });
   for (const [annolinkIndex, annolink] of annolinks.entries()) {
     const annolinkPageResponse = await queuedFetch(
       `https://scrapbox.io/api/pages/${encodeURIComponent(
@@ -115,12 +105,6 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     );
     if (!annolinkPageResponse.ok) {
       console.error(`Failed to fetch page: ${annolinkPageResponse.status}`);
-
-      await sendAnnopage({
-        tabId,
-        annopageMap,
-        existedAnnolink,
-      });
       continue;
     }
     const annolinkPage = await annolinkPageResponse.json();
