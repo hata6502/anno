@@ -30,13 +30,15 @@ export interface Link {
 }
 
 interface Annopage {
+  projectName: string;
+  title: string;
   annodataMap: Map<string, Annodata>;
   configs: InjectionConfig[];
 }
 
 interface InjectionData {
   annopageMap: Map<string, Annopage>;
-  existedAnnolink?: Link;
+  collaboratedAnnopageLink?: Link;
 }
 
 interface Project {
@@ -87,7 +89,7 @@ const prevInjectionDataMap = new Map<string, InjectionData>();
 const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   const prevInjectionData = prevInjectionDataMap.get(url);
   const annopageMap = new Map(prevInjectionData?.annopageMap);
-  let existedAnnolink = prevInjectionData?.existedAnnolink;
+  let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
 
   const { annoProjectName } = await chrome.storage.sync.get(
     initialStorageValues
@@ -102,64 +104,32 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     annolinks.push(decodeURI(annolinkPaths.join("/")));
   } while (annolinkPaths.pop());
 
-  const nextAnnopageIDs = [];
+  const annopageIDs = [];
   for (const [annolinkIndex, annolink] of annolinks.entries()) {
-    const annolinkPageResponse = await queuedFetch(
-      `https://scrapbox.io/api/pages/${encodeURIComponent(
-        annoProjectName
-      )}/${encodeURIComponent(annolink)}`
-    );
-    if (!annolinkPageResponse.ok) {
-      console.error(`Failed to fetch page: ${annolinkPageResponse.status}`);
-      continue;
-    }
-    const annolinkPage = await annolinkPageResponse.json();
-
-    const annolinkPageText = annolinkPage.lines
-      // @ts-expect-error
-      .map(({ text }) => text)
-      .join("\n");
-    const annopageLinks: Link[] = [
-      ...new Set(
-        [
-          ...annolinkPage.links,
-          ...annolinkPage.projectLinks,
-          // @ts-expect-error
-          ...annolinkPage.relatedPages.links1hop.map(({ title }) => title),
-        ].sort(
-          (a, b) =>
-            annolinkPageText.indexOf(`[${b}]`) -
-            annolinkPageText.indexOf(`[${a}]`)
-        )
-      ),
-    ].map((link) => {
-      const paths = link.split("/");
-      return link.startsWith("/")
-        ? { projectName: paths[1], title: paths.slice(2).join("/") }
-        : { projectName: annoProjectName, title: link };
+    const annopageEntries = await fetchAnnopagesByAnnolink({
+      annoProjectName,
+      annolink,
     });
-    if (!annolinkIndex) {
-      existedAnnolink = annopageLinks.at(0);
-    }
 
-    for (const annopageLink of annopageLinks) {
-      const annopageEntry = await fetchAnnopage({ annopageLink });
-      if (!annopageEntry) {
-        continue;
-      }
-
-      const [annopageID, annopage] = annopageEntry;
+    for (const [annopageID, annopage] of annopageEntries) {
       annopageMap.set(annopageID, annopage);
-      nextAnnopageIDs.push(annopageID);
-      await sendInjectionData({
-        tabId,
-        injectionData: { annopageMap, existedAnnolink },
-      });
+      annopageIDs.push(annopageID);
     }
+
+    const firstAnnopageEntries = annopageEntries.at(0);
+    if (!annolinkIndex && firstAnnopageEntries) {
+      const [, firstAnnopage] = firstAnnopageEntries;
+      collaboratedAnnopageLink = firstAnnopage;
+    }
+
+    await sendInjectionData({
+      tabId,
+      injectionData: { annopageMap, collaboratedAnnopageLink },
+    });
   }
 
   for (const [annopageID] of annopageMap) {
-    if (nextAnnopageIDs.includes(annopageID)) {
+    if (annopageIDs.includes(annopageID)) {
       continue;
     }
 
@@ -167,13 +137,69 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   }
   await sendInjectionData({
     tabId,
-    injectionData: { annopageMap, existedAnnolink },
+    injectionData: { annopageMap, collaboratedAnnopageLink },
   });
 
   prevInjectionDataMap.set(url, {
     annopageMap,
-    existedAnnolink,
+    collaboratedAnnopageLink,
   });
+};
+
+const fetchAnnopagesByAnnolink = async ({
+  annoProjectName,
+  annolink,
+}: {
+  annoProjectName: string;
+  annolink: string;
+}) => {
+  const annopageEntries: [string, Annopage][] = [];
+
+  const annolinkPageResponse = await queuedFetch(
+    `https://scrapbox.io/api/pages/${encodeURIComponent(
+      annoProjectName
+    )}/${encodeURIComponent(annolink)}`
+  );
+  if (!annolinkPageResponse.ok) {
+    console.error(`Failed to fetch page: ${annolinkPageResponse.status}`);
+    return annopageEntries;
+  }
+  const annolinkPage = await annolinkPageResponse.json();
+
+  const annolinkPageText = annolinkPage.lines
+    // @ts-expect-error
+    .map(({ text }) => text)
+    .join("\n");
+  const annopageLinks: Link[] = [
+    ...new Set(
+      [
+        ...annolinkPage.links,
+        ...annolinkPage.projectLinks,
+        // @ts-expect-error
+        ...annolinkPage.relatedPages.links1hop.map(({ title }) => title),
+      ].sort(
+        (a, b) =>
+          annolinkPageText.indexOf(`[${b}]`) -
+          annolinkPageText.indexOf(`[${a}]`)
+      )
+    ),
+  ].map((link) => {
+    const paths = link.split("/");
+    return link.startsWith("/")
+      ? { projectName: paths[1], title: paths.slice(2).join("/") }
+      : { projectName: annoProjectName, title: link };
+  });
+
+  for (const annopageLink of annopageLinks) {
+    const annopageEntry = await fetchAnnopage({ annopageLink });
+    if (!annopageEntry) {
+      continue;
+    }
+
+    annopageEntries.push(annopageEntry);
+  }
+
+  return annopageEntries;
 };
 
 const iconImageURLCache = new Map<string, Promise<string | null>>();
@@ -361,7 +387,15 @@ const fetchAnnopage = async ({
     }
   }
 
-  return [annopage.id, { annodataMap, configs }];
+  return [
+    annopage.id,
+    {
+      projectName: annopageProject.name,
+      title: annopage.title,
+      annodataMap,
+      configs,
+    },
+  ];
 };
 
 const sendInjectionData = async ({
@@ -371,7 +405,7 @@ const sendInjectionData = async ({
   tabId: number;
   injectionData: InjectionData;
 }) => {
-  const { annopageMap, existedAnnolink } = injectionData;
+  const { annopageMap, collaboratedAnnopageLink } = injectionData;
 
   await chrome.storage.local.set(
     Object.fromEntries(
@@ -382,7 +416,7 @@ const sendInjectionData = async ({
   const injectMessage: ContentMessage = {
     type: "inject",
     configs: [...annopageMap].flatMap(([, { configs }]) => configs),
-    existedAnnolink,
+    collaboratedAnnopageLink,
   };
   chrome.tabs.sendMessage(tabId, injectMessage);
 };

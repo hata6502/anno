@@ -9,7 +9,7 @@ export type ContentMessage =
   | {
       type: "inject";
       configs: InjectionConfig[];
-      existedAnnolink?: Link;
+      collaboratedAnnopageLink?: Link;
     };
 
 export interface InjectionConfig {
@@ -30,7 +30,7 @@ const getURL = () => {
   return String(url);
 };
 
-let existedAnnolink: Link | undefined;
+let collaboratedAnnopageLink: Link | undefined;
 chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   switch (contentMessage.type) {
     case "annotate": {
@@ -42,7 +42,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
       const isSelected =
         selection && !selection.isCollapsed && selection.rangeCount >= 1;
 
-      if (!existedAnnolink) {
+      if (!collaboratedAnnopageLink) {
         lines.push(`[${title} ${getURL()}]`);
 
         const ogImageElement = window.document.querySelector(
@@ -113,15 +113,15 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             .map((line) => `> ${line}`)
         );
       }
-      const annolink = existedAnnolink ?? {
+      const annopageLink = collaboratedAnnopageLink ?? {
         projectName: contentMessage.annoProjectName,
         title,
       };
       const openMessage: BackgroundMessage = {
         type: "open",
         url: `https://scrapbox.io/${encodeURIComponent(
-          annolink.projectName
-        )}/${encodeURIComponent(annolink.title)}?${new URLSearchParams({
+          annopageLink.projectName
+        )}/${encodeURIComponent(annopageLink.title)}?${new URLSearchParams({
           body: lines.join("\n"),
           followRename: "true",
         })}`,
@@ -293,7 +293,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
         }))
       );
 
-      existedAnnolink = contentMessage.existedAnnolink;
+      collaboratedAnnopageLink = contentMessage.collaboratedAnnopageLink;
       break;
     }
 
