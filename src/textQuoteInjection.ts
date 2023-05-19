@@ -47,10 +47,9 @@ const handleMutation = () => {
     let nextCleanUp = cleanUp;
     let nextRange = range;
 
-    const currentRange: Range | undefined = textQuote.toRange(
-      document.body,
-      config.textQuoteSelector
-    );
+    const currentRange: Range | undefined = textQuote
+      .toRanges(document.body, config.textQuoteSelector)
+      .at(0)?.range;
     if (
       nextRange?.startContainer !== currentRange?.startContainer ||
       nextRange?.startOffset !== currentRange?.startOffset ||
@@ -58,10 +57,14 @@ const handleMutation = () => {
       nextRange?.endOffset !== currentRange?.endOffset
     ) {
       nextCleanUp?.();
-      nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
+      nextRange = textQuote
+        .toRanges(document.body, config.textQuoteSelector)
+        .at(0)?.range;
 
       nextCleanUp = nextRange ? config.inject(nextRange) : undefined;
-      nextRange = textQuote.toRange(document.body, config.textQuoteSelector);
+      nextRange = textQuote
+        .toRanges(document.body, config.textQuoteSelector)
+        .at(0)?.range;
     }
 
     return { config, cleanUp: nextCleanUp, range: nextRange };

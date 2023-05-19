@@ -79,11 +79,6 @@ const checkCollaboratable = async () => {
   };
   setStyle({ isCollaboratable: Boolean(uniqueAnnolinks.length) });
 };
-checkCollaboratable();
-// @ts-expect-error
-scrapbox.on("lines:changed", checkCollaboratable);
-// @ts-expect-error
-scrapbox.on("page:changed", checkCollaboratable);
 
 const extractAnnolink = (value: unknown) => {
   if (typeof value !== "object" || value === null) {
@@ -120,3 +115,9 @@ const extractAnnolink = (value: unknown) => {
 
   return page;
 };
+
+checkCollaboratable();
+// @ts-expect-error
+scrapbox.on("lines:changed", checkCollaboratable);
+// @ts-expect-error
+scrapbox.on("page:changed", checkCollaboratable);

@@ -318,11 +318,13 @@ const highlight = () => {
   }
 
   const selection = getSelection();
-  const range: Range | null = textQuote.toRange(document.body, {
-    prefix: searchParams.get("p") ?? undefined,
-    exact,
-    suffix: searchParams.get("s") ?? undefined,
-  });
+  const range: Range | undefined = textQuote
+    .toRanges(document.body, {
+      prefix: searchParams.get("p") ?? undefined,
+      exact,
+      suffix: searchParams.get("s") ?? undefined,
+    })
+    .at(0)?.range;
   if (!selection || !range) {
     return;
   }
