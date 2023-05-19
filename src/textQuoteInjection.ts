@@ -17,24 +17,30 @@ export interface TextQuoteInjectionConfig {
 
 interface Injection {
   config: TextQuoteInjectionConfig;
-  cleanUp?: CleanUpTextQuoteInjection;
-  range?: Range;
+  cleanUps: CleanUpTextQuoteInjection[];
+  ranges: Range[];
 }
 
-export const injectByTextQuote = (nextConfigs: TextQuoteInjectionConfig[]) => {
-  const nextConfigIDs = nextConfigs.map(({ id }) => id);
-  for (const { config, cleanUp } of injections) {
-    if (nextConfigIDs.includes(config.id)) {
+export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
+  const configIDs = configs.map(({ id }) => id);
+  for (const injection of injections) {
+    if (configIDs.includes(injection.config.id)) {
       continue;
     }
 
-    cleanUp?.();
+    for (const cleanUp of injection.cleanUps) {
+      cleanUp();
+    }
   }
 
-  injections = nextConfigs.map((nextConfig) => ({
-    ...injections.find(({ config }) => config.id === nextConfig.id),
-    config: nextConfig,
-  }));
+  injections = configs.map(
+    (config) =>
+      injections.find((injection) => injection.config.id === config.id) ?? {
+        config,
+        cleanUps: [],
+        ranges: [],
+      }
+  );
 
   handleMutation();
 };
@@ -43,31 +49,32 @@ let injections: Injection[] = [];
 const handleMutation = () => {
   mutationObserver.disconnect();
 
-  injections = injections.map(({ config, cleanUp, range }) => {
-    let nextCleanUp = cleanUp;
-    let nextRange = range;
-
-    const currentRange: Range | undefined = textQuote
-      .toRanges(document.body, config.textQuoteSelector)
-      .at(0)?.range;
+  injections = injections.map((injection) => {
+    let ranges = getNearestRanges(injection.config.textQuoteSelector);
     if (
-      nextRange?.startContainer !== currentRange?.startContainer ||
-      nextRange?.startOffset !== currentRange?.startOffset ||
-      nextRange?.endContainer !== currentRange?.endContainer ||
-      nextRange?.endOffset !== currentRange?.endOffset
+      ranges.length === injection.ranges.length &&
+      [...ranges.entries()].every(([rangeIndex, range]) => {
+        const prevRange = injection.ranges[rangeIndex];
+        return (
+          range.startContainer === prevRange.startContainer &&
+          range.startOffset === prevRange.startOffset &&
+          range.endContainer === prevRange.endContainer &&
+          range.endOffset === prevRange.endOffset
+        );
+      })
     ) {
-      nextCleanUp?.();
-      nextRange = textQuote
-        .toRanges(document.body, config.textQuoteSelector)
-        .at(0)?.range;
-
-      nextCleanUp = nextRange ? config.inject(nextRange) : undefined;
-      nextRange = textQuote
-        .toRanges(document.body, config.textQuoteSelector)
-        .at(0)?.range;
+      return injection;
     }
 
-    return { config, cleanUp: nextCleanUp, range: nextRange };
+    for (const cleanUp of injection.cleanUps) {
+      cleanUp();
+    }
+    ranges = getNearestRanges(injection.config.textQuoteSelector);
+
+    const cleanUps = ranges.map((range) => injection.config.inject(range));
+    ranges = getNearestRanges(injection.config.textQuoteSelector);
+
+    return { ...injection, cleanUps, ranges };
   });
 
   mutationObserver.observe(document.body, {
@@ -77,3 +84,11 @@ const handleMutation = () => {
   });
 };
 const mutationObserver = new MutationObserver(handleMutation);
+
+const getNearestRanges = (textQuoteSelector: TextQuoteSelector): Range[] => {
+  const ranges = textQuote.toRanges(document.body, textQuoteSelector);
+  // @ts-expect-error
+  return ranges.flatMap(({ range, distance }) =>
+    distance <= ranges[0].distance ? [range] : []
+  );
+};

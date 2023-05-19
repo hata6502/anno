@@ -216,7 +216,11 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               if (!ancestorElement.scrollTop) {
                 ancestorElement.scrollTop = 1;
               }
-              if (ancestorElement.scrollTop) {
+              if (
+                ancestorElement.scrollTop &&
+                ancestorElement.scrollHeight > ancestorElement.clientHeight &&
+                getComputedStyle(ancestorElement).overflowY !== "hidden"
+              ) {
                 break;
               }
 
