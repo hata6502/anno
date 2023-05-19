@@ -85,7 +85,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await annotate({ tabId: tab.id });
 });
 
-const annopageEntriesPromiseCache = new Map<
+const annopageEntriesCache = new Map<
   string,
   {
     value: Promise<[string, Annopage][]>;
@@ -113,30 +113,19 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
 
   const annopageIDs = [];
   for (const [annolinkIndex, annolink] of annolinks.entries()) {
-    const annopageEntriesPromiseKey = JSON.stringify({
-      annoProjectName,
-      annolink,
-    });
-    const annopageEntriesPromiseMaxAgeMS = annolinkIndex ? 3 * 60 * 1000 : 0;
-    let annopageEntriesPromise = annopageEntriesPromiseCache.get(
-      annopageEntriesPromiseKey
-    );
+    const annopageEntriesKey = JSON.stringify({ annoProjectName, annolink });
+    const annopageEntriesMaxAgeMS = annolinkIndex ? 3 * 60 * 1000 : 0;
+    let annopageEntriesPromise = annopageEntriesCache.get(annopageEntriesKey);
     if (
       !annopageEntriesPromise ||
       new Date().getTime() - annopageEntriesPromise.storedAt.getTime() >=
-        annopageEntriesPromiseMaxAgeMS
+        annopageEntriesMaxAgeMS
     ) {
       annopageEntriesPromise = {
-        value: fetchAnnopagesByAnnolink({
-          annoProjectName,
-          annolink,
-        }),
+        value: fetchAnnopagesByAnnolink({ annoProjectName, annolink }),
         storedAt: new Date(),
       };
-      annopageEntriesPromiseCache.set(
-        annopageEntriesPromiseKey,
-        annopageEntriesPromise
-      );
+      annopageEntriesCache.set(annopageEntriesKey, annopageEntriesPromise);
     }
     const annopageEntries = await annopageEntriesPromise.value;
 
@@ -231,16 +220,16 @@ const fetchAnnopagesByAnnolink = async ({
   return annopageEntries;
 };
 
-const iconImageURLCache = new Map<string, Promise<string | null>>();
-const projectCache = new Map<string, Promise<Project | null>>();
+const iconImageURLCache = new Map<string, Promise<string | undefined>>();
+const projectCache = new Map<string, Promise<Project | undefined>>();
 const fetchAnnopage = async ({
   annopageLink,
 }: {
   annopageLink: Link;
 }): Promise<[string, Annopage] | undefined> => {
-  let annopageProject = await projectCache.get(annopageLink.projectName);
-  if (annopageProject === undefined) {
-    const projectPromise = (async () => {
+  let annopageProjectPromise = projectCache.get(annopageLink.projectName);
+  if (!annopageProjectPromise) {
+    annopageProjectPromise = (async (): Promise<Project | undefined> => {
       const projectAPIResponse = await queuedFetch(
         `https://scrapbox.io/api/projects/${encodeURIComponent(
           annopageLink.projectName
@@ -248,15 +237,13 @@ const fetchAnnopage = async ({
       );
       if (!projectAPIResponse.ok) {
         console.error(`Failed to fetch project: ${projectAPIResponse.status}`);
-        return null;
+        return;
       }
-      const project = await projectAPIResponse.json();
-      return project as Project;
+      return projectAPIResponse.json();
     })();
-
-    projectCache.set(annopageLink.projectName, projectPromise);
-    annopageProject = await projectPromise;
+    projectCache.set(annopageLink.projectName, annopageProjectPromise);
   }
+  const annopageProject = await annopageProjectPromise;
   if (!annopageProject) {
     return;
   }
@@ -332,9 +319,9 @@ const fetchAnnopage = async ({
       );
 
       const iconKey = `/${annopageProject.name}/${title}`;
-      let url = await iconImageURLCache.get(iconKey);
-      if (url === undefined) {
-        const iconImageURLPromise = (async () => {
+      let urlPromise = iconImageURLCache.get(iconKey);
+      if (!urlPromise) {
+        urlPromise = (async () => {
           const iconResponse = await fetch(
             `https://scrapbox.io/api/pages/${encodeURIComponent(
               annopageProject.name
@@ -342,7 +329,7 @@ const fetchAnnopage = async ({
           );
           if (!iconResponse.ok) {
             console.error(`Failed to fetch icon: ${iconResponse.status}`);
-            return null;
+            return;
           }
 
           const fileReader = new FileReader();
@@ -356,15 +343,15 @@ const fetchAnnopage = async ({
             fileReader.readAsDataURL(await iconResponse.blob());
           });
         })();
-
-        iconImageURLCache.set(iconKey, iconImageURLPromise);
-        url = await iconImageURLPromise;
+        iconImageURLCache.set(iconKey, urlPromise);
+      }
+      const url = await urlPromise;
+      if (!url) {
+        continue;
       }
 
-      if (url) {
-        for (const _towerIndex of Array(tower).keys()) {
-          icons.push({ url, isStrong });
-        }
+      for (const _towerIndex of Array(tower).keys()) {
+        icons.push({ url, isStrong });
       }
     }
     if (!icons.length) {
