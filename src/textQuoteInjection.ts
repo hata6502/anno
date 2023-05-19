@@ -87,8 +87,19 @@ const mutationObserver = new MutationObserver(handleMutation);
 
 const getNearestRanges = (textQuoteSelector: TextQuoteSelector): Range[] => {
   const ranges = textQuote.toRanges(document.body, textQuoteSelector);
-  // @ts-expect-error
-  return ranges.flatMap(({ range, distance }) =>
-    distance <= ranges[0].distance ? [range] : []
+  return (
+    ranges
+      // @ts-expect-error
+      .filter(({ range }) => {
+        const ancestorHTMLElement =
+          range.commonAncestorContainer instanceof HTMLElement
+            ? range.commonAncestorContainer
+            : range.commonAncestorContainer.parentElement;
+        return !ancestorHTMLElement?.isContentEditable;
+      })
+      // @ts-expect-error
+      .flatMap(({ range, distance }) =>
+        distance <= ranges[0].distance ? [range] : []
+      )
   );
 };
