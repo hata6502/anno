@@ -152,8 +152,14 @@ export const textQuoteSelectorAll = (
   return [...matches]
     .sort(([, aDistance], [, bDistance]) => aDistance - bDistance)
     .map(([startIndex, distance]) => {
-      const start = indexToTextRangePoint(textIndex, startIndex);
-      const end = indexToTextRangePoint(textIndex, startIndex + exact.length);
+      const start = indexToTextRangePoint(textIndex, {
+        index: startIndex,
+        isStart: true,
+      });
+      const end = indexToTextRangePoint(textIndex, {
+        index: startIndex + exact.length,
+        isStart: false,
+      });
 
       const range = new Range();
       range.setStart(start.textNode, start.offset);
@@ -180,12 +186,12 @@ const textRangePointToIndex = (
 
 const indexToTextRangePoint = (
   textIndex: TextIndex,
-  index: number
+  { index, isStart }: { index: number; isStart: boolean }
 ): TextRangePoint => {
   let prev;
   for (const current of textIndex.index) {
     const [currentIndex] = current;
-    if (index < currentIndex) {
+    if (isStart ? index < currentIndex : index <= currentIndex) {
       break;
     }
 
