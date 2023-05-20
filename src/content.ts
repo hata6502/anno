@@ -1,7 +1,11 @@
-// @ts-expect-error
-import * as textQuote from "dom-anchor-text-quote";
 import type { BackgroundMessage, Link } from "./background";
-import { TextQuoteSelector, injectByTextQuote } from "./textQuoteInjection";
+import { injectByTextQuote } from "./textQuoteInjection";
+import {
+  TextQuoteSelector,
+  getTextIndex,
+  quoteText,
+  textQuoteSelectorAll,
+} from "./textQuoteSelector";
 import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
 export type ContentMessage =
@@ -88,17 +92,17 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
       }
 
       if (isSelected) {
-        const textQuoteSelector: TextQuoteSelector = textQuote.fromRange(
-          document.body,
+        const textQuoteSelector = quoteText(
+          getTextIndex(document.body),
           selection.getRangeAt(0)
         );
 
         lines.push(
           `[🍀 ${getURL()}#${[
+            `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
             ...(textQuoteSelector.prefix
               ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
               : []),
-            `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
             ...(textQuoteSelector.suffix
               ? [`s=${encodeForScrapboxReadableLink(textQuoteSelector.suffix)}`]
               : []),
@@ -142,38 +146,37 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           inject: (range: Range) => {
             const textNodes = [];
             const clonedRange = range.cloneRange();
-
-            if (clonedRange.startContainer instanceof Text) {
-              clonedRange.setStart(
-                clonedRange.startContainer.splitText(clonedRange.startOffset),
-                0
-              );
-              textNodes.push(clonedRange.startContainer);
+            if (
+              !(clonedRange.startContainer instanceof Text) ||
+              !(clonedRange.endContainer instanceof Text)
+            ) {
+              throw new Error("startContainer and endContainer must be Text");
             }
+
+            clonedRange.setStart(
+              clonedRange.startContainer.splitText(clonedRange.startOffset),
+              0
+            );
+            clonedRange.endContainer.splitText(clonedRange.endOffset);
 
             const nodeIterator = document.createNodeIterator(
               clonedRange.commonAncestorContainer,
-              NodeFilter.SHOW_ALL
+              NodeFilter.SHOW_TEXT
             );
             let currentNode;
             let isInRange = false;
             while ((currentNode = nodeIterator.nextNode())) {
-              if (currentNode === clonedRange.endContainer) {
-                break;
+              if (currentNode === clonedRange.startContainer) {
+                isInRange = true;
               }
 
               if (isInRange && currentNode instanceof Text) {
                 textNodes.push(currentNode);
               }
 
-              if (currentNode === clonedRange.startContainer) {
-                isInRange = true;
+              if (currentNode === clonedRange.endContainer) {
+                break;
               }
-            }
-
-            if (clonedRange.endContainer instanceof Text) {
-              clonedRange.endContainer.splitText(clonedRange.endOffset);
-              textNodes.push(clonedRange.endContainer);
             }
 
             const markElements = textNodes.flatMap((textNode) => {
@@ -322,13 +325,11 @@ const highlight = () => {
   }
 
   const selection = getSelection();
-  const range: Range | undefined = textQuote
-    .toRanges(document.body, {
-      prefix: searchParams.get("p") ?? undefined,
-      exact,
-      suffix: searchParams.get("s") ?? undefined,
-    })
-    .at(0)?.range;
+  const range = textQuoteSelectorAll(getTextIndex(document.body), {
+    exact,
+    prefix: searchParams.get("p") ?? undefined,
+    suffix: searchParams.get("s") ?? undefined,
+  }).at(0)?.range;
   if (!selection || !range) {
     return;
   }

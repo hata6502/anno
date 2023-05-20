@@ -1,13 +1,11 @@
-// @ts-expect-error
-import * as textQuote from "dom-anchor-text-quote";
+import {
+  TextIndex,
+  TextQuoteSelector,
+  getTextIndex,
+  textQuoteSelectorAll,
+} from "./textQuoteSelector";
 
 export type CleanUpTextQuoteInjection = () => void;
-
-export interface TextQuoteSelector {
-  exact: string;
-  prefix?: string;
-  suffix?: string;
-}
 
 export interface TextQuoteInjectionConfig {
   id: string;
@@ -48,9 +46,13 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
 let injections: Injection[] = [];
 const handleMutation = () => {
   mutationObserver.disconnect();
+  let textIndex = getTextIndex(document.body);
 
   injections = injections.map((injection) => {
-    let ranges = getNearestRanges(injection.config.textQuoteSelector);
+    let ranges = getNearestRanges(
+      textIndex,
+      injection.config.textQuoteSelector
+    );
     if (
       ranges.length === injection.ranges.length &&
       [...ranges.entries()].every(([rangeIndex, range]) => {
@@ -69,10 +71,12 @@ const handleMutation = () => {
     for (const cleanUp of injection.cleanUps) {
       cleanUp();
     }
-    ranges = getNearestRanges(injection.config.textQuoteSelector);
+    textIndex = getTextIndex(document.body);
+    ranges = getNearestRanges(textIndex, injection.config.textQuoteSelector);
 
     const cleanUps = ranges.map((range) => injection.config.inject(range));
-    ranges = getNearestRanges(injection.config.textQuoteSelector);
+    textIndex = getTextIndex(document.body);
+    ranges = getNearestRanges(textIndex, injection.config.textQuoteSelector);
 
     return { ...injection, cleanUps, ranges };
   });
@@ -85,21 +89,21 @@ const handleMutation = () => {
 };
 const mutationObserver = new MutationObserver(handleMutation);
 
-const getNearestRanges = (textQuoteSelector: TextQuoteSelector): Range[] => {
-  const ranges = textQuote.toRanges(document.body, textQuoteSelector);
-  return (
-    ranges
-      // @ts-expect-error
-      .filter(({ range }) => {
-        const ancestorHTMLElement =
-          range.commonAncestorContainer instanceof HTMLElement
-            ? range.commonAncestorContainer
-            : range.commonAncestorContainer.parentElement;
-        return !ancestorHTMLElement?.isContentEditable;
-      })
-      // @ts-expect-error
-      .flatMap(({ range, distance }) =>
-        distance <= ranges[0].distance ? [range] : []
-      )
-  );
+const getNearestRanges = (
+  textIndex: TextIndex,
+  textQuoteSelector: TextQuoteSelector
+) => {
+  const ranges = textQuoteSelectorAll(textIndex, textQuoteSelector);
+
+  return ranges
+    .filter(({ range }) => {
+      const ancestorHTMLElement =
+        range.commonAncestorContainer instanceof HTMLElement
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
+      return !ancestorHTMLElement?.isContentEditable;
+    })
+    .flatMap(({ range, distance }) =>
+      distance <= ranges[0].distance ? [range] : []
+    );
 };
