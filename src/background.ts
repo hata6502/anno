@@ -109,7 +109,8 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   const annolinks = [];
   do {
     annolinks.push(decodeURI(annolinkPaths.join("/")));
-  } while (annolinkPaths.pop());
+    annolinkPaths.pop();
+  } while (annolinkPaths.length >= 2);
 
   const annopageIDs = [];
   for (const [annolinkIndex, annolink] of annolinks.entries()) {
