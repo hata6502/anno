@@ -144,7 +144,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           id: JSON.stringify(config),
           textQuoteSelector: config.textQuoteSelector,
           inject: (range: Range) => {
-            const textNodes = [];
             const clonedRange = range.cloneRange();
             if (
               !(clonedRange.startContainer instanceof Text) ||
@@ -159,6 +158,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             );
             clonedRange.endContainer.splitText(clonedRange.endOffset);
 
+            const textNodes = [];
             const nodeIterator = document.createNodeIterator(
               clonedRange.commonAncestorContainer,
               NodeFilter.SHOW_TEXT

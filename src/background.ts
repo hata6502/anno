@@ -92,9 +92,9 @@ const annopageEntriesCache = new Map<
     storedAt: Date;
   }
 >();
-const prevInjectionDataMap = new Map<string, InjectionData>();
+const prevInjectionDataMap = new Map<number, InjectionData>();
 const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
-  const prevInjectionData = prevInjectionDataMap.get(url);
+  const prevInjectionData = prevInjectionDataMap.get(tabId);
   const annopageMap = new Map(prevInjectionData?.annopageMap);
   let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
 
@@ -159,10 +159,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     injectionData: { annopageMap, collaboratedAnnopageLink },
   });
 
-  prevInjectionDataMap.set(url, {
-    annopageMap,
-    collaboratedAnnopageLink,
-  });
+  prevInjectionDataMap.set(tabId, { annopageMap, collaboratedAnnopageLink });
 };
 
 const fetchAnnopagesByAnnolink = async ({

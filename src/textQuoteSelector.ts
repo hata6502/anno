@@ -38,10 +38,7 @@ export const getTextIndex = (root: Node): TextIndex => {
   return { text, index };
 };
 
-export const quoteText = (
-  textIndex: TextIndex,
-  range: Range
-): TextQuoteSelector => {
+export const getTextRange = (range: Range) => {
   const startNode = getRangePointNode({
     container: range.startContainer,
     offset: range.startOffset,
@@ -96,13 +93,31 @@ export const quoteText = (
     endOffset = endContainer.textContent?.length ?? 0;
   }
 
+  const textRange = new Range();
+  textRange.setStart(startContainer, startOffset);
+  textRange.setEnd(endContainer, endOffset);
+  return textRange;
+};
+
+export const quoteText = (
+  textIndex: TextIndex,
+  range: Range
+): TextQuoteSelector => {
+  const textRange = getTextRange(range);
+  if (
+    !(textRange.startContainer instanceof Text) ||
+    !(textRange.endContainer instanceof Text)
+  ) {
+    throw new Error("range is not TextRange");
+  }
+
   const startIndex = textRangePointToIndex(textIndex, {
-    textNode: startContainer,
-    offset: startOffset,
+    textNode: textRange.startContainer,
+    offset: textRange.startOffset,
   });
   const endIndex = textRangePointToIndex(textIndex, {
-    textNode: endContainer,
-    offset: endOffset,
+    textNode: textRange.endContainer,
+    offset: textRange.endOffset,
   });
 
   return {
