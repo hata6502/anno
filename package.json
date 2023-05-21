@@ -13,14 +13,12 @@
   "author": "Tomoyuki Hata",
   "scripts": {
     "build": "webpack",
-    "fix": "prettier --write .",
-    "test": "prettier --check . && tsc --noEmit"
+    "test": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.174",
     "leven": "^4.0.0",
     "p-queue": "^7.3.4",
-    "prettier": "^2.5.1",
     "ts-loader": "^9.2.6",
     "typescript": "^5.0.4",
     "webpack": "^5.65.0",

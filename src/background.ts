@@ -517,6 +517,17 @@ chrome.runtime.onMessageExternal.addListener(
   }
 );
 
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  const isReloading = changeInfo.status === "loading" && !changeInfo.url;
+  if (!isReloading) {
+    return;
+  }
+
+  iconImageURLCache.clear();
+  projectCache.clear();
+  annopageEntriesCache.clear();
+});
+
 const tryGetTab = async (tabId: number) => {
   try {
     return await chrome.tabs.get(tabId);
