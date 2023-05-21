@@ -38,87 +38,14 @@ export const getTextIndex = (root: Node): TextIndex => {
   return { text, index };
 };
 
-export const getTextRange = (range: Range) => {
-  const startNode = getRangePointNode({
-    container: range.startContainer,
-    offset: range.startOffset,
-  });
-  const endNode = getRangePointNode({
-    container: range.endContainer,
-    offset: range.endOffset,
-  });
-
-  const textNodes = [];
-  const nodeIterator = document.createNodeIterator(
-    range.commonAncestorContainer,
-    NodeFilter.SHOW_ALL
-  );
-  let node;
-  let isInRange = false;
-  while ((node = nodeIterator.nextNode())) {
-    if (node === startNode) {
-      isInRange = true;
-    }
-
-    if (isInRange && node instanceof Text) {
-      textNodes.push(node);
-    }
-
-    if (node === endNode) {
-      break;
-    }
-  }
-
-  let startContainer;
-  let startOffset = range.startOffset;
-  startContainer = range.startContainer;
-  if (!(startContainer instanceof Text)) {
-    startContainer = textNodes.at(0);
-    if (!startContainer) {
-      throw new Error("startContainer not found");
-    }
-
-    startOffset = 0;
-  }
-
-  let endContainer;
-  let endOffset = range.endOffset;
-  endContainer = range.endContainer;
-  if (!(endContainer instanceof Text)) {
-    endContainer = textNodes.at(-1);
-    if (!endContainer) {
-      throw new Error("endContainer not found");
-    }
-
-    endOffset = endContainer.textContent?.length ?? 0;
-  }
-
-  const textRange = new Range();
-  textRange.setStart(startContainer, startOffset);
-  textRange.setEnd(endContainer, endOffset);
-  return textRange;
-};
-
 export const quoteText = (
   textIndex: TextIndex,
   range: Range
 ): TextQuoteSelector => {
-  const textRange = getTextRange(range);
-  if (
-    !(textRange.startContainer instanceof Text) ||
-    !(textRange.endContainer instanceof Text)
-  ) {
-    throw new Error("range is not TextRange");
-  }
+  const { start, end } = getTextRange(range);
 
-  const startIndex = textRangePointToIndex(textIndex, {
-    textNode: textRange.startContainer,
-    offset: textRange.startOffset,
-  });
-  const endIndex = textRangePointToIndex(textIndex, {
-    textNode: textRange.endContainer,
-    offset: textRange.endOffset,
-  });
+  const startIndex = textRangePointToIndex(textIndex, start);
+  const endIndex = textRangePointToIndex(textIndex, end);
 
   return {
     exact: textIndex.text.slice(startIndex, endIndex),
@@ -182,6 +109,72 @@ export const textQuoteSelectorAll = (
 
       return { range, distance };
     });
+};
+
+const getTextRange = (
+  range: Range
+): {
+  start: TextRangePoint;
+  end: TextRangePoint;
+} => {
+  const startNode = getRangePointNode({
+    container: range.startContainer,
+    offset: range.startOffset,
+  });
+  const endNode = getRangePointNode({
+    container: range.endContainer,
+    offset: range.endOffset,
+  });
+
+  const textNodes = [];
+  const nodeIterator = document.createNodeIterator(
+    range.commonAncestorContainer,
+    NodeFilter.SHOW_ALL
+  );
+  let node;
+  let isInRange = false;
+  while ((node = nodeIterator.nextNode())) {
+    if (node === startNode) {
+      isInRange = true;
+    }
+
+    if (isInRange && node instanceof Text) {
+      textNodes.push(node);
+    }
+
+    if (node === endNode) {
+      break;
+    }
+  }
+
+  let startContainer;
+  let startOffset = range.startOffset;
+  startContainer = range.startContainer;
+  if (!(startContainer instanceof Text)) {
+    startContainer = textNodes.at(0);
+    if (!startContainer) {
+      throw new Error("startContainer not found");
+    }
+
+    startOffset = 0;
+  }
+
+  let endContainer;
+  let endOffset = range.endOffset;
+  endContainer = range.endContainer;
+  if (!(endContainer instanceof Text)) {
+    endContainer = textNodes.at(-1);
+    if (!endContainer) {
+      throw new Error("endContainer not found");
+    }
+
+    endOffset = endContainer.textContent?.length ?? 0;
+  }
+
+  return {
+    start: { textNode: startContainer, offset: startOffset },
+    end: { textNode: endContainer, offset: endOffset },
+  };
 };
 
 const textRangePointToIndex = (

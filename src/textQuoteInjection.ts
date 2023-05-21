@@ -5,28 +5,30 @@ import {
   textQuoteSelectorAll,
 } from "./textQuoteSelector";
 
-export type CleanUpTextQuoteInjection = () => void;
-
 export interface TextQuoteInjectionConfig {
   id: string;
   textQuoteSelector: TextQuoteSelector;
-  inject: (match: Range) => CleanUpTextQuoteInjection;
+  inject: (range: Range) => State;
 }
 
 interface Injection {
   config: TextQuoteInjectionConfig;
-  cleanUps: CleanUpTextQuoteInjection[];
-  ranges: Range[];
+  states: State[];
+}
+
+interface State {
+  range: Range;
+  cleanUp: () => void;
 }
 
 export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
   const configIDs = configs.map(({ id }) => id);
-  for (const injection of injections) {
-    if (configIDs.includes(injection.config.id)) {
+  for (const { config, states } of injections) {
+    if (configIDs.includes(config.id)) {
       continue;
     }
 
-    for (const cleanUp of injection.cleanUps) {
+    for (const { cleanUp } of states) {
       cleanUp();
     }
   }
@@ -35,8 +37,7 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
     (config) =>
       injections.find((injection) => injection.config.id === config.id) ?? {
         config,
-        cleanUps: [],
-        ranges: [],
+        states: [],
       }
   );
 
@@ -46,39 +47,29 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
 let injections: Injection[] = [];
 const handleMutation = () => {
   mutationObserver.disconnect();
-  let textIndex = getTextIndex(document.body);
 
   injections = injections.map((injection) => {
-    let ranges = getNearestRanges(
-      textIndex,
+    const ranges = getNearestRanges(
+      getTextIndex(document.body),
       injection.config.textQuoteSelector
     );
-    if (
-      ranges.length === injection.ranges.length &&
-      [...ranges.entries()].every(([rangeIndex, range]) => {
-        const prevRange = injection.ranges[rangeIndex];
-        return (
-          range.startContainer === prevRange.startContainer &&
-          range.startOffset === prevRange.startOffset &&
-          range.endContainer === prevRange.endContainer &&
-          range.endOffset === prevRange.endOffset
-        );
-      })
-    ) {
-      return injection;
+
+    for (const state of injection.states) {
+      if (ranges.some((range) => isEqualRange(range, state.range))) {
+        continue;
+      }
+
+      state.cleanUp();
     }
 
-    for (const cleanUp of injection.cleanUps) {
-      cleanUp();
-    }
-    textIndex = getTextIndex(document.body);
-    ranges = getNearestRanges(textIndex, injection.config.textQuoteSelector);
-
-    const cleanUps = ranges.map((range) => injection.config.inject(range));
-    textIndex = getTextIndex(document.body);
-    ranges = getNearestRanges(textIndex, injection.config.textQuoteSelector);
-
-    return { ...injection, cleanUps, ranges };
+    return {
+      ...injection,
+      states: ranges.map(
+        (range) =>
+          injection.states.find((state) => isEqualRange(state.range, range)) ??
+          injection.config.inject(range)
+      ),
+    };
   });
 
   mutationObserver.observe(document.body, {
@@ -107,3 +98,9 @@ const getNearestRanges = (
       distance <= ranges[0].distance ? [range] : []
     );
 };
+
+const isEqualRange = (a: Range, b: Range) =>
+  a.startContainer === b.startContainer &&
+  a.startOffset === b.startOffset &&
+  a.endContainer === b.endContainer &&
+  a.endOffset === b.endOffset;

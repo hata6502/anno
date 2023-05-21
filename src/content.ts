@@ -283,18 +283,34 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             handleScroll();
             addEventListener("scroll", handleScroll, true);
 
-            return () => {
-              for (const markElement of markElements) {
-                markElement.after(...markElement.childNodes);
-                markElement.remove();
-              }
+            const nextRange = new Range();
+            const firstTextNode = textNodes.at(0);
+            if (firstTextNode) {
+              nextRange.setStart(firstTextNode, 0);
+            }
+            const lastTextNode = textNodes.at(-1);
+            if (lastTextNode) {
+              nextRange.setEnd(
+                lastTextNode,
+                lastTextNode.textContent?.length ?? 0
+              );
+            }
 
-              for (const iframeElement of iframeElements) {
-                iframeElement.remove();
-              }
+            return {
+              range: nextRange,
+              cleanUp: () => {
+                for (const markElement of markElements) {
+                  markElement.after(...markElement.childNodes);
+                  markElement.remove();
+                }
 
-              barmapElement.remove();
-              removeEventListener("scroll", handleScroll, true);
+                for (const iframeElement of iframeElements) {
+                  iframeElement.remove();
+                }
+
+                barmapElement.remove();
+                removeEventListener("scroll", handleScroll, true);
+              },
             };
           },
         }))
