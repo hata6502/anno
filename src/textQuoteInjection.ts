@@ -48,29 +48,31 @@ let injections: Injection[] = [];
 const handleMutation = () => {
   mutationObserver.disconnect();
 
-  injections = injections.map((injection) => {
-    const ranges = getNearestRanges(
-      getTextIndex(document.body),
-      injection.config.textQuoteSelector
-    );
+  const textIndex = getTextIndex(document.body);
+  injections = injections
+    .map((injection) => ({
+      injection,
+      ranges: getNearestRanges(textIndex, injection.config.textQuoteSelector),
+    }))
+    .map(({ injection, ranges }) => {
+      for (const state of injection.states) {
+        if (ranges.some((range) => isEqualRange(range, state.range))) {
+          continue;
+        }
 
-    for (const state of injection.states) {
-      if (ranges.some((range) => isEqualRange(range, state.range))) {
-        continue;
+        state.cleanUp();
       }
 
-      state.cleanUp();
-    }
-
-    return {
-      ...injection,
-      states: ranges.map(
-        (range) =>
-          injection.states.find((state) => isEqualRange(state.range, range)) ??
-          injection.config.inject(range)
-      ),
-    };
-  });
+      return {
+        ...injection,
+        states: ranges.map(
+          (range) =>
+            injection.states.find((state) =>
+              isEqualRange(state.range, range)
+            ) ?? injection.config.inject(range)
+        ),
+      };
+    });
 
   mutationObserver.observe(document.body, {
     subtree: true,
