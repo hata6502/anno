@@ -3,6 +3,7 @@ import { injectByTextQuote } from "./textQuoteInjection";
 import {
   TextQuoteSelector,
   getTextIndex,
+  getTextRange,
   quoteText,
   textQuoteSelectorAll,
 } from "./textQuoteSelector";
@@ -143,30 +144,33 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
         contentMessage.configs.map((config) => ({
           id: JSON.stringify(config),
           textQuoteSelector: config.textQuoteSelector,
-          inject: (range: Range) => {
-            const clonedRange = range.cloneRange();
-            if (
-              !(clonedRange.startContainer instanceof Text) ||
-              !(clonedRange.endContainer instanceof Text)
-            ) {
-              throw new Error("startContainer and endContainer must be Text");
-            }
-
-            clonedRange.setStart(
-              clonedRange.startContainer.splitText(clonedRange.startOffset),
-              0
+          inject: (range) => {
+            const textRange = getTextRange(range);
+            const splittedStartTextNode = textRange.start.textNode.splitText(
+              textRange.start.offset
             );
-            clonedRange.endContainer.splitText(clonedRange.endOffset);
+            const end =
+              textRange.start.textNode === textRange.end.textNode
+                ? {
+                    textNode: splittedStartTextNode,
+                    offset: textRange.end.offset - textRange.start.offset,
+                  }
+                : textRange.end;
+            end.textNode.splitText(end.offset);
+
+            const splittedRange = new Range();
+            splittedRange.setStart(splittedStartTextNode, 0);
+            splittedRange.setEnd(end.textNode, end.offset);
 
             const textNodes = [];
             const nodeIterator = document.createNodeIterator(
-              clonedRange.commonAncestorContainer,
+              splittedRange.commonAncestorContainer,
               NodeFilter.SHOW_TEXT
             );
             let currentNode;
             let isInRange = false;
             while ((currentNode = nodeIterator.nextNode())) {
-              if (currentNode === clonedRange.startContainer) {
+              if (currentNode === splittedRange.startContainer) {
                 isInRange = true;
               }
 
@@ -174,7 +178,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 textNodes.push(currentNode);
               }
 
-              if (currentNode === clonedRange.endContainer) {
+              if (currentNode === splittedRange.endContainer) {
                 break;
               }
             }
@@ -212,9 +216,9 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             markElements.at(-1)?.after(...iframeElements);
 
             let ancestorElement =
-              clonedRange.commonAncestorContainer instanceof Element
-                ? clonedRange.commonAncestorContainer
-                : clonedRange.commonAncestorContainer.parentElement;
+              splittedRange.commonAncestorContainer instanceof Element
+                ? splittedRange.commonAncestorContainer
+                : splittedRange.commonAncestorContainer.parentElement;
             while (ancestorElement) {
               if (!ancestorElement.scrollTop) {
                 ancestorElement.scrollTop = 1;
