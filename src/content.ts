@@ -6,7 +6,7 @@ import {
   getTextRange,
   quoteText,
   textQuoteSelectorAll,
-} from "./textQuoteSelector";
+} from "text-quote-selector";
 import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
 export type ContentMessage =

@@ -3,7 +3,7 @@ import {
   TextQuoteSelector,
   getTextIndex,
   textQuoteSelectorAll,
-} from "./textQuoteSelector";
+} from "text-quote-selector";
 
 export interface TextQuoteInjectionConfig {
   id: string;
