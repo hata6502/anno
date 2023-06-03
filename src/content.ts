@@ -247,12 +247,18 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             document.body.append(barmapElement);
 
             const handleScroll = () => {
+              const elements = [...markElements, ...iframeElements];
+
+              const isVisible = elements.some(
+                (element) => element.offsetParent
+              );
+
               const scrollableAncestorDOMRect =
                 scrollableAncestorElement === document.documentElement
                   ? new DOMRect()
                   : scrollableAncestorElement.getBoundingClientRect();
-              const domRects = [...markElements, ...iframeElements].map(
-                (element) => element.getBoundingClientRect()
+              const domRects = elements.map((element) =>
+                element.getBoundingClientRect()
               );
 
               const top = Math.min(...domRects.map((domRect) => domRect.top));
@@ -271,6 +277,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                   scrollableAncestorElement.scrollHeight) *
                 scrollableAncestorElement.clientHeight;
 
+              barmapElement.style.display = isVisible ? "block" : "none";
               barmapElement.style.left = `${
                 scrollableAncestorDOMRect.left +
                 scrollableAncestorElement.clientWidth -
@@ -303,6 +310,8 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             return {
               range: nextRange,
               cleanUp: () => {
+                removeEventListener("scroll", handleScroll, true);
+
                 for (const markElement of markElements) {
                   markElement.after(...markElement.childNodes);
                   markElement.remove();
@@ -313,7 +322,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 }
 
                 barmapElement.remove();
-                removeEventListener("scroll", handleScroll, true);
               },
             };
           },
