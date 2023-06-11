@@ -370,7 +370,7 @@ const fetchAnnopage = async ({
           }`,
           description,
           iconImageURL: icon.url,
-          iconSize: icon.isStrong ? 60 : 20,
+          iconSize: icon.isStrong ? 56 : 28,
         };
 
         const id = [
