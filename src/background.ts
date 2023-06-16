@@ -360,7 +360,7 @@ const fetchAnnopage = async ({
     }
 
     for (const { prefix, exact, suffix } of annotations) {
-      const newAnnodataMap = new Map<string, Annodata>();
+      const newAnnodataEntries: [string, Annodata][] = [];
       for (const icon of icons) {
         const annodata = {
           url: `https://scrapbox.io/${encodeURIComponent(
@@ -384,14 +384,14 @@ const fetchAnnopage = async ({
           .map((uint8) => uint8.toString(16).padStart(2, "0"))
           .join("");
 
-        newAnnodataMap.set(id, annodata);
+        newAnnodataEntries.push([id, annodata]);
       }
 
-      annodataMap = new Map([...annodataMap, ...newAnnodataMap]);
+      annodataMap = new Map([...annodataMap, ...newAnnodataEntries]);
 
       configs.push({
         textQuoteSelector: { prefix, exact, suffix },
-        annotations: [...newAnnodataMap].map(([id, annodata]) => ({
+        annotations: newAnnodataEntries.map(([id, annodata]) => ({
           url: `${chrome.runtime.getURL(
             "annotation.html"
           )}?${new URLSearchParams({ id })}`,
