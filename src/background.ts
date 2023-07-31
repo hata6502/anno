@@ -3,6 +3,13 @@ import type { ContentMessage, InjectionConfig } from "./content";
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
 
+addEventListener("error", async (event) => {
+  await chrome.tabs.create({
+    url: `data:,${encodeURIComponent(event.message)}`,
+  });
+});
+
+const annodataIDPrefix = "annodata-";
 const fallbackIconImageURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
 
@@ -51,11 +58,13 @@ const queuedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
 const annotate = async ({ tabId }: { tabId: number }) => {
-  const { annoProjectName } = await chrome.storage.sync.get(
+  const { annoProjectName } = await chrome.storage.local.get(
+    // OK
     initialStorageValues
   );
   if (!annoProjectName) {
-    chrome.runtime.openOptionsPage();
+    // chrome.runtime.openOptionsPage(); // OK
+    await chrome.tabs.create({ url: "https://example.com/" }); // OK
     return;
   }
 
@@ -63,27 +72,29 @@ const annotate = async ({ tabId }: { tabId: number }) => {
     type: "annotate",
     annoProjectName,
   };
-  chrome.tabs.sendMessage(tabId, annotateMessage);
+  chrome.tabs.sendMessage(tabId, annotateMessage); // OK
 };
 
 chrome.action.onClicked.addListener(async (tab) => {
+  // OK
   if (typeof tab.id !== "number") {
     return;
   }
   await annotate({ tabId: tab.id });
 });
 
-chrome.contextMenus.create({
+/*const menus = chrome.menus ?? chrome.contextMenus;
+menus.create({
   id: "annotate",
   title: "Annotate",
   contexts: ["page", "selection"],
 });
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+menus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "annotate" || typeof tab?.id !== "number") {
     return;
   }
   await annotate({ tabId: tab.id });
-});
+});*/
 
 const annopageEntriesCache = new Map<
   string,
@@ -98,7 +109,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   const annopageMap = new Map(prevInjectionData?.annopageMap);
   let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
 
-  const { annoProjectName } = await chrome.storage.sync.get(
+  const { annoProjectName } = await chrome.storage.local.get(
     initialStorageValues
   );
   if (!annoProjectName) {
@@ -373,7 +384,7 @@ const fetchAnnopage = async ({
           iconSize: icon.isStrong ? 56 : 28,
         };
 
-        const id = [
+        const id = `${annodataIDPrefix}${[
           ...new Uint8Array(
             await crypto.subtle.digest(
               "SHA-256",
@@ -382,7 +393,7 @@ const fetchAnnopage = async ({
           ),
         ]
           .map((uint8) => uint8.toString(16).padStart(2, "0"))
-          .join("");
+          .join("")}`;
 
         newAnnodataEntries.push([id, annodata]);
       }
@@ -393,6 +404,7 @@ const fetchAnnopage = async ({
         textQuoteSelector: { prefix, exact, suffix },
         annotations: newAnnodataEntries.map(([id, annodata]) => ({
           url: `${chrome.runtime.getURL(
+            // OK
             "annotation.html"
           )}?${new URLSearchParams({ id })}`,
           size: annodata.iconSize,
@@ -422,6 +434,7 @@ const sendInjectionData = async ({
   const { annopageMap, collaboratedAnnopageLink } = injectionData;
 
   await chrome.storage.local.set(
+    // OK
     Object.fromEntries(
       [...annopageMap].flatMap(([, { annodataMap }]) => [...annodataMap])
     )
@@ -432,16 +445,20 @@ const sendInjectionData = async ({
     configs: [...annopageMap].flatMap(([, { configs }]) => configs),
     collaboratedAnnopageLink,
   };
-  chrome.tabs.sendMessage(tabId, injectMessage);
+  chrome.tabs.sendMessage(tabId, injectMessage); // OK
 };
 
 chrome.runtime.onStartup.addListener(async () => {
-  // Clear annodata.
-  await chrome.storage.local.clear();
+  // OK
+  const annodataKeys = Object.keys(await chrome.storage.local.get(null)).filter(
+    (key) => key.startsWith(annodataIDPrefix)
+  );
+  await chrome.storage.local.remove(annodataKeys); // OK
 });
 
 let annoTabId: number | undefined;
 chrome.runtime.onMessage.addListener(
+  // OK
   async (backgroundMessage: BackgroundMessage, sender) => {
     const tabId = sender.tab?.id;
     if (!tabId) {
@@ -453,16 +470,16 @@ chrome.runtime.onMessage.addListener(
         const annoTab = annoTabId && (await tryGetTab(annoTabId));
         if (annoTab && annoTab.id) {
           await chrome.tabs.update(annoTab.id, {
+            // OK
             active: true,
             url: backgroundMessage.url,
           });
-          await chrome.windows.update(annoTab.windowId, { focused: true });
         } else {
-          const window = await chrome.windows.create({
-            type: "popup",
+          const tab = await chrome.tabs.create({
+            // NG
             url: backgroundMessage.url,
           });
-          annoTabId = window.tabs?.at(0)?.id;
+          annoTabId = tab.id;
         }
         break;
       }
@@ -481,12 +498,14 @@ chrome.runtime.onMessage.addListener(
 );
 
 chrome.runtime.onMessageExternal.addListener(
+  // OK
   async (externalBackgroundMessage: ExternalBackgroundMessage) => {
-    const { annoProjectName } = await chrome.storage.sync.get(
+    const { annoProjectName } = await chrome.storage.local.get(
+      // OK
       initialStorageValues
     );
     if (!annoProjectName) {
-      chrome.runtime.openOptionsPage();
+      chrome.runtime.openOptionsPage(); // OK
       return;
     }
 
@@ -496,6 +515,7 @@ chrome.runtime.onMessageExternal.addListener(
 
         for (const annolink of externalBackgroundMessage.annolinks) {
           await chrome.tabs.create({
+            // OK
             url: `https://scrapbox.io/${encodeURIComponent(
               annoProjectName
             )}/${encodeURIComponent(annolink)}?${new URLSearchParams({
@@ -516,6 +536,7 @@ chrome.runtime.onMessageExternal.addListener(
 );
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  // OK
   const isReloading = changeInfo.status === "loading" && !changeInfo.url;
   if (!isReloading) {
     return;
@@ -528,6 +549,6 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
 
 const tryGetTab = async (tabId: number) => {
   try {
-    return await chrome.tabs.get(tabId);
+    return await chrome.tabs.get(tabId); // OK
   } catch {}
 };

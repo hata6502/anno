@@ -9,6 +9,8 @@ import {
 } from "text-quote-selector";
 import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
+alert("content.ts");
+
 export type ContentMessage =
   | { type: "annotate"; annoProjectName: string }
   | {
