@@ -3,6 +3,13 @@ import type { ContentMessage, InjectionConfig } from "./content";
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
 
+addEventListener("error", async (event) => {
+  await chrome.tabs.create({
+    url: `data:,${encodeURIComponent(event.message)}`,
+  });
+});
+
+const annodataIDPrefix = "annodata-";
 const fallbackIconImageURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
 
@@ -51,7 +58,7 @@ const queuedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
 const annotate = async ({ tabId }: { tabId: number }) => {
-  const { annoProjectName } = await chrome.storage.sync.get(
+  const { annoProjectName } = await chrome.storage.local.get(
     initialStorageValues
   );
   if (!annoProjectName) {
@@ -66,7 +73,7 @@ const annotate = async ({ tabId }: { tabId: number }) => {
   chrome.tabs.sendMessage(tabId, annotateMessage);
 };
 
-chrome.action.onClicked.addListener(async (tab) => {
+chrome.browserAction.onClicked.addListener(async (tab) => {
   if (typeof tab.id !== "number") {
     return;
   }
@@ -98,7 +105,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   const annopageMap = new Map(prevInjectionData?.annopageMap);
   let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
 
-  const { annoProjectName } = await chrome.storage.sync.get(
+  const { annoProjectName } = await chrome.storage.local.get(
     initialStorageValues
   );
   if (!annoProjectName) {
@@ -373,7 +380,7 @@ const fetchAnnopage = async ({
           iconSize: icon.isStrong ? 56 : 28,
         };
 
-        const id = [
+        const id = `${annodataIDPrefix}${[
           ...new Uint8Array(
             await crypto.subtle.digest(
               "SHA-256",
@@ -382,7 +389,7 @@ const fetchAnnopage = async ({
           ),
         ]
           .map((uint8) => uint8.toString(16).padStart(2, "0"))
-          .join("");
+          .join("")}`;
 
         newAnnodataEntries.push([id, annodata]);
       }
@@ -436,8 +443,10 @@ const sendInjectionData = async ({
 };
 
 chrome.runtime.onStartup.addListener(async () => {
-  // Clear annodata.
-  await chrome.storage.local.clear();
+  const annodataKeys = Object.keys(await chrome.storage.local.get(null)).filter(
+    (key) => key.startsWith(annodataIDPrefix)
+  );
+  await chrome.storage.local.remove(annodataKeys);
 });
 
 let annoTabId: number | undefined;
@@ -482,7 +491,7 @@ chrome.runtime.onMessage.addListener(
 
 chrome.runtime.onMessageExternal.addListener(
   async (externalBackgroundMessage: ExternalBackgroundMessage) => {
-    const { annoProjectName } = await chrome.storage.sync.get(
+    const { annoProjectName } = await chrome.storage.local.get(
       initialStorageValues
     );
     if (!annoProjectName) {

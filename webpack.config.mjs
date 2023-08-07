@@ -10,9 +10,6 @@ const config = {
     scrapboxContent: "./src/scrapboxContent.ts",
     scrapboxUserScript: "./src/scrapboxUserScript.ts",
   },
-  experiments: {
-    topLevelAwait: true,
-  },
   module: {
     rules: [
       {
