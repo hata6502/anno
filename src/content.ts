@@ -203,7 +203,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               const iframeElement = document.createElement("iframe");
 
               open(url);
-              
+
               iframeElement.src = url;
               iframeElement.sandbox.add(
                 "allow-popups",
@@ -212,10 +212,11 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               );
 
               iframeElement.style.all = "revert";
-              iframeElement.style.border = "none";
-              iframeElement.style.verticalAlign = "text-bottom";
               iframeElement.style.width = `${size}px`;
               iframeElement.style.height = `${size}px`;
+              iframeElement.style.marginTop = `${-size}px`;
+              iframeElement.style.border = "none";
+              iframeElement.style.verticalAlign = "text-bottom";
 
               return iframeElement;
             });
