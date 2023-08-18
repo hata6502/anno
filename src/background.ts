@@ -205,7 +205,6 @@ const fetchAnnopagesByAnnolink = async ({
         ...annolinkPage.projectLinks,
         // @ts-expect-error
         ...annolinkPage.relatedPages.links1hop.map(({ title }) => title),
-        ...(annolinkPage.persistent ? [annolinkPage.title] : []),
       ].sort(
         (a, b) =>
           annolinkPageText.indexOf(`[${b}]`) -
