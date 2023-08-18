@@ -238,13 +238,21 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               ancestorElement ?? document.documentElement;
 
             const barmapWidth = 16;
-            const barmapElement = document.createElement("div");
-            barmapElement.style.all = "revert";
+            const barmapElement = document.createElement("button");
+            barmapElement.style.all = "unset";
             barmapElement.style.position = "fixed";
             barmapElement.style.width = `${barmapWidth}px`;
+            barmapElement.style.borderTop = `8px solid transparent`;
+            barmapElement.style.borderBottom = `8px solid transparent`;
             barmapElement.style.background = "rgba(91, 165, 111, 0.5)";
-            barmapElement.style.pointerEvents = "none";
+            barmapElement.style.backgroundClip = "padding-box";
+            barmapElement.style.cursor = "pointer";
             barmapElement.style.zIndex = "2147483647";
+
+            barmapElement.addEventListener("click", () => {
+              markElements.at(0)?.scrollIntoView({ block: "center" });
+            });
+
             document.body.append(barmapElement);
 
             const handleScroll = () => {
@@ -285,7 +293,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 barmapWidth
               }px`;
               barmapElement.style.top = `${
-                scrollableAncestorDOMRect.top + clientTop
+                scrollableAncestorDOMRect.top + clientTop - 8
               }px`;
               barmapElement.style.height = `${Math.max(
                 clientBottom - clientTop,
