@@ -196,6 +196,7 @@ const fetchAnnopagesByAnnolink = async ({
   const annopageLinks: Link[] = [
     ...new Set(
       [
+        annolink,
         ...annolinkPage.links,
         ...annolinkPage.projectLinks,
         // @ts-expect-error
