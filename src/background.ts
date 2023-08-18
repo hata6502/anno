@@ -3,12 +3,6 @@ import type { ContentMessage, InjectionConfig } from "./content";
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
 
-addEventListener("error", async (event) => {
-  await chrome.tabs.create({
-    url: `data:,${encodeURIComponent(event.message)}`,
-  });
-});
-
 const annodataIDPrefix = "annodata-";
 const fallbackIconImageURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
@@ -73,7 +67,7 @@ const annotate = async ({ tabId }: { tabId: number }) => {
   chrome.tabs.sendMessage(tabId, annotateMessage);
 };
 
-chrome.browserAction.onClicked.addListener(async (tab) => {
+chrome.action.onClicked.addListener(async (tab) => {
   if (typeof tab.id !== "number") {
     return;
   }

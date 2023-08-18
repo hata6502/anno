@@ -22,10 +22,6 @@ export interface InjectionConfig {
   annotations: { url: string; size: number }[];
 }
 
-addEventListener("error", async (event) => {
-  alert(event.message);
-});
-
 const getURL = () => {
   const canonicalLinkElement = document.querySelector(
     'link[rel="canonical" i]'
@@ -201,8 +197,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
             const iframeElements = config.annotations.map(({ url, size }) => {
               const iframeElement = document.createElement("iframe");
-
-              open(url);
 
               iframeElement.src = url;
               iframeElement.sandbox.add(
