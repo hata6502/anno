@@ -94,7 +94,16 @@ const annopageEntriesCache = new Map<
   }
 >();
 const prevInjectionDataMap = new Map<number, InjectionData>();
-const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
+const abortInjectingControllerMap = new Map<number, AbortController>();
+const inject = async ({
+  tabId,
+  url,
+  signal,
+}: {
+  tabId: number;
+  url: string;
+  signal: AbortSignal;
+}) => {
   const prevInjectionData = prevInjectionDataMap.get(tabId);
   const annopageMap = new Map(prevInjectionData?.annopageMap);
   let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
@@ -145,6 +154,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
     await sendInjectionData({
       tabId,
       injectionData: { annopageMap, collaboratedAnnopageLink },
+      signal,
     });
   }
 
@@ -158,6 +168,7 @@ const inject = async ({ tabId, url }: { tabId: number; url: string }) => {
   await sendInjectionData({
     tabId,
     injectionData: { annopageMap, collaboratedAnnopageLink },
+    signal,
   });
 
   prevInjectionDataMap.set(tabId, { annopageMap, collaboratedAnnopageLink });
@@ -190,11 +201,11 @@ const fetchAnnopagesByAnnolink = async ({
   const annopageLinks: Link[] = [
     ...new Set(
       [
-        annolink,
         ...annolinkPage.links,
         ...annolinkPage.projectLinks,
         // @ts-expect-error
         ...annolinkPage.relatedPages.links1hop.map(({ title }) => title),
+        ...(annolinkPage.persistent ? [annolinkPage.title] : []),
       ].sort(
         (a, b) =>
           annolinkPageText.indexOf(`[${b}]`) -
@@ -417,10 +428,16 @@ const fetchAnnopage = async ({
 const sendInjectionData = async ({
   tabId,
   injectionData,
+  signal,
 }: {
   tabId: number;
   injectionData: InjectionData;
+  signal: AbortSignal;
 }) => {
+  if (signal.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
+
   const { annopageMap, collaboratedAnnopageLink } = injectionData;
 
   await chrome.storage.local.set(
@@ -472,7 +489,15 @@ chrome.runtime.onMessage.addListener(
       }
 
       case "urlChange": {
-        await inject({ tabId, url: backgroundMessage.url });
+        abortInjectingControllerMap.get(tabId)?.abort();
+
+        const abortInjectingController = new AbortController();
+        abortInjectingControllerMap.set(tabId, abortInjectingController);
+        await inject({
+          tabId,
+          url: backgroundMessage.url,
+          signal: abortInjectingController.signal,
+        });
         break;
       }
 
