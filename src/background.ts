@@ -52,7 +52,7 @@ const fetchQueue = new PQueue({ interval: 5000, intervalCap: 5 });
 const queuedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
-const annotate = async ({
+const mark = async ({
   tabId,
   annopageTitle,
   head,
@@ -73,32 +73,32 @@ const annotate = async ({
     return;
   }
 
-  const annotateMessage: ContentMessage = {
-    type: "annotate",
+  const markMessage: ContentMessage = {
+    type: "mark",
     annoProjectName,
     annopageTitle,
     head,
     includesPrefix,
     includesSuffix,
   };
-  chrome.tabs.sendMessage(tabId, annotateMessage);
+  chrome.tabs.sendMessage(tabId, markMessage);
 };
 
 chrome.action.onClicked.addListener(async (tab) => {
   if (typeof tab.id !== "number") {
     return;
   }
-  await annotate({ tabId: tab.id, includesPrefix: true, includesSuffix: true });
+  await mark({ tabId: tab.id, includesPrefix: true, includesSuffix: true });
 });
 
 chrome.contextMenus.create({
-  id: "annotate",
-  title: "Annotate",
+  id: "mark",
+  title: "Mark",
   contexts: ["page", "selection"],
 });
 chrome.contextMenus.create({
   id: "markWord",
-  title: "Mark word",
+  title: "Mark as a word",
   contexts: ["page", "selection"],
 });
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -107,8 +107,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   switch (info.menuItemId) {
-    case "annotate": {
-      await annotate({
+    case "mark": {
+      await mark({
         tabId: tab.id,
         includesPrefix: true,
         includesSuffix: true,
@@ -117,7 +117,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
 
     case "markWord": {
-      await annotate({
+      await mark({
         tabId: tab.id,
         annopageTitle: "Marked words",
         head: `[annos:/]

@@ -1,4 +1,4 @@
-# anno - Flexible annotation for the web
+# anno - Marker for web with Scrapbox
 
 ## Build
 

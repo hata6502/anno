@@ -2,7 +2,7 @@
   "name": "anno",
   "version": "4.0.0",
   "manifest_version": 3,
-  "description": "Flexible annotation for the web. ",
+  "description": "Marker for web with Scrapbox. ",
   "action": {},
   "background": {
     "service_worker": "dist/background.js"

@@ -11,7 +11,7 @@ import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
 export type ContentMessage =
   | {
-      type: "annotate";
+      type: "mark";
       annoProjectName: string;
       annopageTitle?: string;
       head?: string;
@@ -45,7 +45,7 @@ const getURL = () => {
 let collaboratedAnnopageLink: Link | undefined;
 chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   switch (contentMessage.type) {
-    case "annotate": {
+    case "mark": {
       const lines = [];
 
       const title = document.title || new Date().toLocaleString();
