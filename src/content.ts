@@ -223,7 +223,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 iframeElement.style.all = "revert";
                 iframeElement.style.width = `${width}px`;
                 iframeElement.style.height = `${height}px`;
-                iframeElement.style.marginTop = `${-height}px`;
                 iframeElement.style.border = "none";
                 iframeElement.style.verticalAlign = "text-bottom";
 
