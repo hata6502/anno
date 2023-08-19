@@ -171,7 +171,7 @@ const inject = async ({
   } while (annolinkPaths.length >= 2);
 
   const annopageIDs = [];
-  for (const [annolinkIndex, annolink] of [...annolinks.entries()].reverse()) {
+  for (const [annolinkIndex, annolink] of annolinks.entries()) {
     const annopageEntriesKey = JSON.stringify({ annoProjectName, annolink });
     const annopageEntriesMaxAgeMS = annolinkIndex ? 3 * 60 * 1000 : 0;
     let annopageEntriesPromise = annopageEntriesCache.get(annopageEntriesKey);
