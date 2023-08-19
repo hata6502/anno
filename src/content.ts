@@ -190,6 +190,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
               const markElement = document.createElement("mark");
               markElement.style.all = "revert";
+              markElement.style.background = "rgba(91, 165, 111, 0.5)";
               textNode.after(markElement);
               markElement.append(textNode);
               return [markElement];
