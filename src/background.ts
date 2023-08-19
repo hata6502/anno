@@ -120,7 +120,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       await mark({
         tabId: tab.id,
         annopageTitle: "Marked words",
-        head: "[annos:/]",
+        head: `[annos:/]
+`,
         includesPrefix: false,
         includesSuffix: false,
       });
