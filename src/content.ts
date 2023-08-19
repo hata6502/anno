@@ -10,7 +10,14 @@ import {
 import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
 export type ContentMessage =
-  | { type: "annotate"; annoProjectName: string }
+  | {
+      type: "annotate";
+      annoProjectName: string;
+      annopageTitle?: string;
+      head?: string;
+      includesPrefix: boolean;
+      includesSuffix: boolean;
+    }
   | {
       type: "inject";
       configs: InjectionConfig[];
@@ -47,7 +54,9 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
       const isSelected =
         selection && !selection.isCollapsed && selection.rangeCount >= 1;
 
-      if (!collaboratedAnnopageLink) {
+      if (contentMessage.head) {
+        lines.push(...contentMessage.head.split("\n"));
+      } else if (!collaboratedAnnopageLink) {
         lines.push(`[${title} ${getURL()}]`);
 
         const ogImageElement = window.document.querySelector(
@@ -101,10 +110,10 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
         lines.push(
           `[🍀 ${getURL()}#${[
             `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
-            ...(textQuoteSelector.prefix
+            ...(contentMessage.includesPrefix && textQuoteSelector.prefix
               ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
               : []),
-            ...(textQuoteSelector.suffix
+            ...(contentMessage.includesSuffix && textQuoteSelector.suffix
               ? [`s=${encodeForScrapboxReadableLink(textQuoteSelector.suffix)}`]
               : []),
           ].join("&")}]`
@@ -118,10 +127,15 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             .map((line) => `> ${line}`)
         );
       }
-      const annopageLink = collaboratedAnnopageLink ?? {
+
+      const annopageLink = (contentMessage.annopageTitle && {
         projectName: contentMessage.annoProjectName,
-        title,
-      };
+        title: contentMessage.annopageTitle,
+      }) ||
+        collaboratedAnnopageLink || {
+          projectName: contentMessage.annoProjectName,
+          title,
+        };
       const openMessage: BackgroundMessage = {
         type: "open",
         url: `https://scrapbox.io/${encodeURIComponent(

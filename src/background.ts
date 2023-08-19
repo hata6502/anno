@@ -52,7 +52,19 @@ const fetchQueue = new PQueue({ interval: 5000, intervalCap: 5 });
 const queuedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
-const annotate = async ({ tabId }: { tabId: number }) => {
+const annotate = async ({
+  tabId,
+  annopageTitle,
+  head,
+  includesPrefix,
+  includesSuffix,
+}: {
+  tabId: number;
+  annopageTitle?: string;
+  head?: string;
+  includesPrefix: boolean;
+  includesSuffix: boolean;
+}) => {
   const { annoProjectName } = await chrome.storage.local.get(
     initialStorageValues
   );
@@ -64,6 +76,10 @@ const annotate = async ({ tabId }: { tabId: number }) => {
   const annotateMessage: ContentMessage = {
     type: "annotate",
     annoProjectName,
+    annopageTitle,
+    head,
+    includesPrefix,
+    includesSuffix,
   };
   chrome.tabs.sendMessage(tabId, annotateMessage);
 };
@@ -72,7 +88,7 @@ chrome.action.onClicked.addListener(async (tab) => {
   if (typeof tab.id !== "number") {
     return;
   }
-  await annotate({ tabId: tab.id });
+  await annotate({ tabId: tab.id, includesPrefix: true, includesSuffix: true });
 });
 
 chrome.contextMenus.create({
@@ -80,11 +96,38 @@ chrome.contextMenus.create({
   title: "Annotate",
   contexts: ["page", "selection"],
 });
+chrome.contextMenus.create({
+  id: "markWord",
+  title: "Mark word",
+  contexts: ["page", "selection"],
+});
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== "annotate" || typeof tab?.id !== "number") {
+  if (typeof tab?.id !== "number") {
     return;
   }
-  await annotate({ tabId: tab.id });
+
+  switch (info.menuItemId) {
+    case "annotate": {
+      await annotate({
+        tabId: tab.id,
+        includesPrefix: true,
+        includesSuffix: true,
+      });
+      break;
+    }
+
+    case "markWord": {
+      await annotate({
+        tabId: tab.id,
+        annopageTitle: "Marked words",
+        head: `[annos:/]
+`,
+        includesPrefix: false,
+        includesSuffix: false,
+      });
+      break;
+    }
+  }
 });
 
 const annopageEntriesCache = new Map<
