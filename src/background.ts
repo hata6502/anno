@@ -4,7 +4,7 @@ import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
 
 const annodataIDPrefix = "annodata-";
-const fallbackIconImageURL =
+const fallbackIconURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
 
 export type BackgroundMessage =
@@ -21,8 +21,9 @@ export type ExternalBackgroundMessage = {
 export interface Annodata {
   url: string;
   description: string;
-  iconImageURL: string;
-  iconSize: number;
+  iconURL: string;
+  iconWidth: number;
+  iconHeight: number;
 }
 
 export interface Link {
@@ -136,8 +137,8 @@ const inject = async ({
         value: fetchAnnopagesByAnnolink({ annoProjectName, annolink }),
         storedAt: new Date(),
       };
-      annopageEntriesCache.set(annopageEntriesKey, annopageEntriesPromise);
     }
+    annopageEntriesCache.set(annopageEntriesKey, annopageEntriesPromise);
     const annopageEntries = await annopageEntriesPromise.value;
 
     for (const [annopageID, annopage] of annopageEntries) {
@@ -230,16 +231,26 @@ const fetchAnnopagesByAnnolink = async ({
   return annopageEntries;
 };
 
-const iconImageURLCache = new Map<string, Promise<string | undefined>>();
+const iconCache = new Map<
+  string,
+  Promise<
+    | {
+        url: string;
+        width: number;
+        height: number;
+      }
+    | undefined
+  >
+>();
 const projectCache = new Map<string, Promise<Project | undefined>>();
 const fetchAnnopage = async ({
   annopageLink,
 }: {
   annopageLink: Link;
 }): Promise<[string, Annopage] | undefined> => {
-  let annopageProjectPromise = projectCache.get(annopageLink.projectName);
-  if (!annopageProjectPromise) {
-    annopageProjectPromise = (async (): Promise<Project | undefined> => {
+  const annopageProjectPromise =
+    projectCache.get(annopageLink.projectName) ??
+    (async (): Promise<Project | undefined> => {
       const projectAPIResponse = await queuedFetch(
         `https://scrapbox.io/api/projects/${encodeURIComponent(
           annopageLink.projectName
@@ -251,8 +262,7 @@ const fetchAnnopage = async ({
       }
       return projectAPIResponse.json();
     })();
-    projectCache.set(annopageLink.projectName, annopageProjectPromise);
-  }
+  projectCache.set(annopageLink.projectName, annopageProjectPromise);
   const annopageProject = await annopageProjectPromise;
   if (!annopageProject) {
     return;
@@ -318,7 +328,7 @@ const fetchAnnopage = async ({
       description = description.replaceAll(body, "");
     }
 
-    const icons = [];
+    const parsedIcons = [];
     for (const iconExpressionMatch of description.matchAll(
       /(\[?)\[([^\]]+)\.icon(?:\*([1-9]\d*))?\](\]?)/g
     )) {
@@ -328,52 +338,77 @@ const fetchAnnopage = async ({
         iconExpressionMatch[1] && iconExpressionMatch[4]
       );
 
-      const iconKey = `/${annopageProject.name}/${title}`;
-      let urlPromise = iconImageURLCache.get(iconKey);
-      if (!urlPromise) {
-        urlPromise = (async () => {
-          const iconResponse = await fetch(
-            `https://scrapbox.io/api/pages/${encodeURIComponent(
-              annopageProject.name
-            )}/${encodeURIComponent(title)}/icon?followRename`
-          );
+      for (const _towerIndex of Array(tower).keys()) {
+        parsedIcons.push({
+          url: `https://scrapbox.io/api/pages/${encodeURIComponent(
+            annopageProject.name
+          )}/${encodeURIComponent(title)}/icon?followRename`,
+          isStrong,
+        });
+      }
+    }
+    if (parsedIcons.length < 1) {
+      parsedIcons.push({
+        url: annopageProject.image ?? fallbackIconURL,
+        isStrong: false,
+      });
+    }
+
+    const icons = [];
+    for (const { url, isStrong } of parsedIcons) {
+      const iconPromise =
+        iconCache.get(url) ??
+        (async () => {
+          const iconResponse = await fetch(url);
           if (!iconResponse.ok) {
             console.error(`Failed to fetch icon: ${iconResponse.status}`);
             return;
           }
+          const imageBitmap = await createImageBitmap(
+            await iconResponse.blob()
+          );
+
+          const height = 128;
+          const width = (imageBitmap.width / imageBitmap.height) * height;
+
+          const canvas = new OffscreenCanvas(width, height);
+          const canvasContext = canvas.getContext("2d");
+          if (!canvasContext) {
+            throw new Error("Failed to get offscreenCanvas context. ");
+          }
+          canvasContext.drawImage(imageBitmap, 0, 0, width, height);
 
           const fileReader = new FileReader();
-          return new Promise<string>(async (resolve) => {
+          const dataURL = await new Promise<string>(async (resolve) => {
             fileReader.addEventListener("load", () => {
               if (typeof fileReader.result !== "string") {
                 throw new Error("fileReader result is not string. ");
               }
               resolve(fileReader.result);
             });
-            fileReader.readAsDataURL(await iconResponse.blob());
+            fileReader.readAsDataURL(await canvas.convertToBlob());
           });
+
+          return {
+            url: dataURL,
+            width,
+            height,
+          };
         })();
-        iconImageURLCache.set(iconKey, urlPromise);
-      }
-      const url = await urlPromise;
-      if (!url) {
+      iconCache.set(url, iconPromise);
+      const icon = await iconPromise;
+      if (!icon) {
         continue;
       }
 
-      for (const _towerIndex of Array(tower).keys()) {
-        icons.push({ url, isStrong });
-      }
-    }
-    if (!icons.length) {
-      icons.push({
-        url: annopageProject.image ?? fallbackIconImageURL,
-        isStrong: false,
-      });
+      icons.push({ ...icon, isStrong });
     }
 
     for (const { prefix, exact, suffix } of annotations) {
       const newAnnodataEntries: [string, Annodata][] = [];
       for (const icon of icons) {
+        const iconHeight = icon.isStrong ? 56 : 28;
+        const iconWidth = (icon.width / icon.height) * iconHeight;
         const annodata = {
           url: `https://scrapbox.io/${encodeURIComponent(
             annopageProject.name
@@ -381,8 +416,9 @@ const fetchAnnopage = async ({
             section[0].id
           }`,
           description,
-          iconImageURL: icon.url,
-          iconSize: icon.isStrong ? 56 : 28,
+          iconURL: icon.url,
+          iconWidth,
+          iconHeight,
         };
 
         const id = `${annodataIDPrefix}${[
@@ -395,7 +431,6 @@ const fetchAnnopage = async ({
         ]
           .map((uint8) => uint8.toString(16).padStart(2, "0"))
           .join("")}`;
-
         newAnnodataEntries.push([id, annodata]);
       }
 
@@ -407,7 +442,8 @@ const fetchAnnopage = async ({
           url: `${chrome.runtime.getURL(
             "annotation.html"
           )}?${new URLSearchParams({ id })}`,
-          size: annodata.iconSize,
+          width: annodata.iconWidth,
+          height: annodata.iconHeight,
         })),
       });
     }
@@ -549,7 +585,7 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
     return;
   }
 
-  iconImageURLCache.clear();
+  iconCache.clear();
   projectCache.clear();
   annopageEntriesCache.clear();
 });

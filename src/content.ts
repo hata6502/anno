@@ -19,7 +19,7 @@ export type ContentMessage =
 
 export interface InjectionConfig {
   textQuoteSelector: TextQuoteSelector;
-  annotations: { url: string; size: number }[];
+  annotations: { url: string; width: number; height: number }[];
 }
 
 const getURL = () => {
@@ -195,25 +195,27 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               return [markElement];
             });
 
-            const iframeElements = config.annotations.map(({ url, size }) => {
-              const iframeElement = document.createElement("iframe");
+            const iframeElements = config.annotations.map(
+              ({ url, width, height }) => {
+                const iframeElement = document.createElement("iframe");
 
-              iframeElement.src = url;
-              iframeElement.sandbox.add(
-                "allow-popups",
-                "allow-popups-to-escape-sandbox",
-                "allow-scripts"
-              );
+                iframeElement.src = url;
+                iframeElement.sandbox.add(
+                  "allow-popups",
+                  "allow-popups-to-escape-sandbox",
+                  "allow-scripts"
+                );
 
-              iframeElement.style.all = "revert";
-              iframeElement.style.width = `${size}px`;
-              iframeElement.style.height = `${size}px`;
-              iframeElement.style.marginTop = `${-size}px`;
-              iframeElement.style.border = "none";
-              iframeElement.style.verticalAlign = "text-bottom";
+                iframeElement.style.all = "revert";
+                iframeElement.style.width = `${width}px`;
+                iframeElement.style.height = `${height}px`;
+                iframeElement.style.marginTop = `${-height}px`;
+                iframeElement.style.border = "none";
+                iframeElement.style.verticalAlign = "text-bottom";
 
-              return iframeElement;
-            });
+                return iframeElement;
+              }
+            );
             markElements.at(-1)?.after(...iframeElements);
 
             let ancestorElement =
@@ -398,7 +400,6 @@ const checkURLChange = () => {
 };
 
 setInterval(() => {
-  // @ts-expect-error
   if (!navigator.userActivation.isActive) {
     return;
   }
