@@ -151,6 +151,11 @@ const inject = async ({
   const prevInjectionData = prevInjectionDataMap.get(tabId);
   const annopageMap = new Map(prevInjectionData?.annopageMap);
   let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
+  await sendInjectionData({
+    tabId,
+    injectionData: { annopageMap, collaboratedAnnopageLink },
+    signal,
+  });
 
   const { annoProjectName } = await chrome.storage.local.get(
     initialStorageValues
@@ -167,7 +172,7 @@ const inject = async ({
   } while (annolinkPaths.length >= 2);
 
   const annopageIDs = [];
-  for (const [annolinkIndex, annolink] of annolinks.entries()) {
+  for (const [annolinkIndex, annolink] of [...annolinks.entries()].reverse()) {
     const annopageEntriesKey = JSON.stringify({ annoProjectName, annolink });
     const annopageEntriesMaxAgeMS = annolinkIndex ? 3 * 60 * 1000 : 0;
     let annopageEntriesPromise = annopageEntriesCache.get(annopageEntriesKey);
