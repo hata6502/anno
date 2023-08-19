@@ -95,10 +95,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
         }
 
         lines.push(`[${decodeURI(getAnnolink(getURL()))}]`);
-
-        if (isSelected) {
-          lines.push("");
-        }
+        lines.push("");
       }
 
       if (isSelected) {
