@@ -160,9 +160,11 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           textQuoteSelector: config.textQuoteSelector,
           inject: (range) => {
             const textRange = getTextRange(range);
-            const splittedStartTextNode = textRange.start.textNode.splitText(
-              textRange.start.offset
-            );
+            const splittedStartTextNode =
+              textRange.start.offset >= 1 &&
+              textRange.start.offset < textRange.start.textNode.length
+                ? textRange.start.textNode.splitText(textRange.start.offset)
+                : textRange.start.textNode;
             const end =
               textRange.start.textNode === textRange.end.textNode
                 ? {
@@ -170,7 +172,9 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                     offset: textRange.end.offset - textRange.start.offset,
                   }
                 : textRange.end;
-            end.textNode.splitText(end.offset);
+            if (end.offset >= 1 && end.offset < end.textNode.length) {
+              end.textNode.splitText(end.offset);
+            }
 
             const splittedRange = new Range();
             splittedRange.setStart(splittedStartTextNode, 0);
@@ -189,6 +193,11 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
 
               if (isInRange && currentNode instanceof Text) {
+                if (currentNode.parentElement?.closest(".anno")) {
+                  textNodes.splice(0);
+                  break;
+                }
+
                 textNodes.push(currentNode);
               }
 
@@ -203,6 +212,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
 
               const markElement = document.createElement("mark");
+              markElement.classList.add("anno");
               markElement.style.all = "revert";
               textNode.after(markElement);
               markElement.append(textNode);
@@ -220,6 +230,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                   "allow-scripts"
                 );
 
+                iframeElement.classList.add("anno");
                 iframeElement.style.all = "revert";
                 iframeElement.style.width = `${width}px`;
                 iframeElement.style.height = `${height}px`;
@@ -325,10 +336,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             }
             const lastTextNode = textNodes.at(-1);
             if (lastTextNode) {
-              nextRange.setEnd(
-                lastTextNode,
-                lastTextNode.textContent?.length ?? 0
-              );
+              nextRange.setEnd(lastTextNode, lastTextNode.length);
             }
 
             return {
