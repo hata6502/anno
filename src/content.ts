@@ -1,4 +1,4 @@
-import type { BackgroundMessage, Link } from "./background";
+import type { BackgroundMessage } from "./background";
 import { injectByTextQuote } from "./textQuoteInjection";
 import {
   TextQuoteSelector,
@@ -20,14 +20,36 @@ export type ContentMessage =
     }
   | {
       type: "inject";
-      configs: InjectionConfig[];
-      collaboratedAnnopageLink?: Link;
-      markedWordsPageLink?: Link;
+      injectionData: InjectionData;
     };
 
-export interface InjectionConfig {
-  textQuoteSelector: TextQuoteSelector;
-  annotations: { url: string; width: number; height: number }[];
+export interface InjectionData {
+  annopageRecord: Record<string, Annopage>;
+  collaboratedAnnopageLink?: Link;
+  markedWordsPageLink?: Link;
+}
+
+export interface Annopage {
+  projectName: string;
+  title: string;
+  annodataRecord: Record<string, Annodata>;
+  configs: {
+    textQuoteSelector: TextQuoteSelector;
+    annotations: { url: string; width: number; height: number }[];
+  }[];
+}
+
+export interface Annodata {
+  url: string;
+  description: string;
+  iconURL: string;
+  iconWidth: number;
+  iconHeight: number;
+}
+
+export interface Link {
+  projectName: string;
+  title: string;
 }
 
 const getURL = () => {
@@ -102,15 +124,14 @@ const write = async ({
   handleDocumentChange();
 };
 
-let collaboratedAnnopageLink: Link | undefined;
-let markedWordsPageLink: Link | undefined;
+let prevInjectionData: InjectionData | undefined;
 chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   switch (contentMessage.type) {
     case "mark": {
       const title = document.title || new Date().toLocaleString();
 
       const headerLines = [];
-      if (!collaboratedAnnopageLink) {
+      if (!prevInjectionData?.collaboratedAnnopageLink) {
         headerLines.push(`[${title} ${getURL()}]`);
 
         const ogImageElement = window.document.querySelector(
@@ -155,7 +176,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
       }
 
       await write({
-        annopageLink: collaboratedAnnopageLink || {
+        annopageLink: prevInjectionData?.collaboratedAnnopageLink || {
           projectName: contentMessage.annoProjectName,
           title,
         },
@@ -168,7 +189,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
     case "markWord": {
       const headerLines = [];
-      if (!markedWordsPageLink) {
+      if (!prevInjectionData?.markedWordsPageLink) {
         headerLines.push(
           "[anno word marker https://help.hata6502.com/--64e1b4ed04e75e001bab5d79]"
         );
@@ -177,7 +198,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
       }
 
       await write({
-        annopageLink: markedWordsPageLink || {
+        annopageLink: prevInjectionData?.markedWordsPageLink || {
           projectName: contentMessage.annoProjectName,
           title: "Marked words",
         },
@@ -189,8 +210,12 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
     }
 
     case "inject": {
+      const configs = Object.values(
+        contentMessage.injectionData.annopageRecord
+      ).flatMap(({ configs }) => configs);
+
       injectByTextQuote(
-        contentMessage.configs.map((config) => ({
+        configs.map((config) => ({
           id: JSON.stringify(config),
           textQuoteSelector: config.textQuoteSelector,
           inject: (range) => {
@@ -404,8 +429,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
         }))
       );
 
-      collaboratedAnnopageLink = contentMessage.collaboratedAnnopageLink;
-      markedWordsPageLink = contentMessage.markedWordsPageLink;
+      prevInjectionData = contentMessage.injectionData;
       break;
     }
 
@@ -461,6 +485,7 @@ const checkURLChange = () => {
     const urlChangeMessage: BackgroundMessage = {
       type: "urlChange",
       url: getURL(),
+      prevInjectionData,
     };
     chrome.runtime.sendMessage(urlChangeMessage);
 

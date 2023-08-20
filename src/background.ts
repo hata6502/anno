@@ -1,5 +1,11 @@
 import PQueue from "p-queue";
-import type { ContentMessage, InjectionConfig } from "./content";
+import type {
+  Annodata,
+  Annopage,
+  ContentMessage,
+  InjectionData,
+  Link,
+} from "./content";
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
 
@@ -9,7 +15,7 @@ const fallbackIconURL =
 
 export type BackgroundMessage =
   | { type: "open"; url: string }
-  | { type: "urlChange"; url: string };
+  | { type: "urlChange"; url: string; prevInjectionData?: InjectionData };
 
 export type ExternalBackgroundMessage = {
   type: "collaborate";
@@ -17,32 +23,6 @@ export type ExternalBackgroundMessage = {
   pageTitle: string;
   annolinks: string[];
 };
-
-export interface Annodata {
-  url: string;
-  description: string;
-  iconURL: string;
-  iconWidth: number;
-  iconHeight: number;
-}
-
-export interface Link {
-  projectName: string;
-  title: string;
-}
-
-interface Annopage {
-  projectName: string;
-  title: string;
-  annodataMap: Map<string, Annodata>;
-  configs: InjectionConfig[];
-}
-
-interface InjectionData {
-  annopageMap: Map<string, Annopage>;
-  collaboratedAnnopageLink?: Link;
-  markedWordsPageLink?: Link;
-}
 
 interface Project {
   name: string;
@@ -121,25 +101,25 @@ const annopageEntriesCache = new Map<
     storedAt: Date;
   }
 >();
-const prevInjectionDataMap = new Map<number, InjectionData>();
 const abortInjectingControllerMap = new Map<number, AbortController>();
 const inject = async ({
   tabId,
   url,
   signal,
+  prevInjectionData,
 }: {
   tabId: number;
   url: string;
   signal: AbortSignal;
+  prevInjectionData?: InjectionData;
 }) => {
-  const prevInjectionData = prevInjectionDataMap.get(tabId);
-  const annopageMap = new Map(prevInjectionData?.annopageMap);
+  const annopageRecord = { ...prevInjectionData?.annopageRecord };
   let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
   let markedWordsPageLink = prevInjectionData?.markedWordsPageLink;
   await sendInjectionData({
     tabId,
     injectionData: {
-      annopageMap,
+      annopageRecord,
       collaboratedAnnopageLink,
       markedWordsPageLink,
     },
@@ -179,7 +159,7 @@ const inject = async ({
     const annopageEntries = await annopageEntriesPromise.value;
 
     for (const [annopageID, annopage] of annopageEntries) {
-      annopageMap.set(annopageID, annopage);
+      annopageRecord[annopageID] = annopage;
       annopageIDs.push(annopageID);
     }
 
@@ -192,7 +172,7 @@ const inject = async ({
     await sendInjectionData({
       tabId,
       injectionData: {
-        annopageMap,
+        annopageRecord,
         collaboratedAnnopageLink,
         markedWordsPageLink,
       },
@@ -200,17 +180,17 @@ const inject = async ({
     });
   }
 
-  for (const [annopageID] of annopageMap) {
+  for (const annopageID of Object.keys(annopageRecord)) {
     if (annopageIDs.includes(annopageID)) {
       continue;
     }
 
-    annopageMap.delete(annopageID);
+    delete annopageRecord[annopageID];
   }
   await sendInjectionData({
     tabId,
     injectionData: {
-      annopageMap,
+      annopageRecord,
       collaboratedAnnopageLink,
       markedWordsPageLink,
     },
@@ -335,7 +315,7 @@ const fetchAnnopage = async ({
   sections.push(section);
 
   const configs = [];
-  let annodataMap = new Map();
+  let annodataRecord: Record<string, Annodata> = {};
   for (const section of sections) {
     const sectionText = section.map(({ text }) => text).join("\n");
 
@@ -448,7 +428,7 @@ const fetchAnnopage = async ({
     }
 
     for (const { prefix, exact, suffix } of annotations) {
-      const newAnnodataEntries: [string, Annodata][] = [];
+      const newAnnodataRecord: Record<string, Annodata> = {};
       for (const icon of icons) {
         const iconHeight = icon.isStrong ? 56 : 28;
         const iconWidth = (icon.width / icon.height) * iconHeight;
@@ -474,20 +454,22 @@ const fetchAnnopage = async ({
         ]
           .map((uint8) => uint8.toString(16).padStart(2, "0"))
           .join("")}`;
-        newAnnodataEntries.push([id, annodata]);
+        newAnnodataRecord[id] = annodata;
       }
 
-      annodataMap = new Map([...annodataMap, ...newAnnodataEntries]);
+      annodataRecord = { ...annodataRecord, ...newAnnodataRecord };
 
       configs.push({
         textQuoteSelector: { prefix, exact, suffix },
-        annotations: newAnnodataEntries.map(([id, annodata]) => ({
-          url: `${chrome.runtime.getURL(
-            "annotation.html"
-          )}?${new URLSearchParams({ id })}`,
-          width: annodata.iconWidth,
-          height: annodata.iconHeight,
-        })),
+        annotations: Object.entries(newAnnodataRecord).map(
+          ([id, annodata]) => ({
+            url: `${chrome.runtime.getURL(
+              "annotation.html"
+            )}?${new URLSearchParams({ id })}`,
+            width: annodata.iconWidth,
+            height: annodata.iconHeight,
+          })
+        ),
       });
     }
   }
@@ -497,7 +479,7 @@ const fetchAnnopage = async ({
     {
       projectName: annopageProject.name,
       title: annopage.title,
-      annodataMap,
+      annodataRecord,
       configs,
     },
   ];
@@ -516,21 +498,15 @@ const sendInjectionData = async ({
     throw new DOMException("Aborted", "AbortError");
   }
 
-  prevInjectionDataMap.set(tabId, injectionData);
-  const { annopageMap, collaboratedAnnopageLink, markedWordsPageLink } =
-    injectionData;
-
-  await chrome.storage.local.set(
-    Object.fromEntries(
-      [...annopageMap].flatMap(([, { annodataMap }]) => [...annodataMap])
-    )
-  );
+  for (const { annodataRecord } of Object.values(
+    injectionData.annopageRecord
+  )) {
+    await chrome.storage.local.set(annodataRecord);
+  }
 
   const injectMessage: ContentMessage = {
     type: "inject",
-    configs: [...annopageMap].flatMap(([, { configs }]) => configs),
-    collaboratedAnnopageLink,
-    markedWordsPageLink,
+    injectionData,
   };
   chrome.tabs.sendMessage(tabId, injectMessage);
 };
@@ -578,6 +554,7 @@ chrome.runtime.onMessage.addListener(
           tabId,
           url: backgroundMessage.url,
           signal: abortInjectingController.signal,
+          prevInjectionData: backgroundMessage.prevInjectionData,
         });
         break;
       }
