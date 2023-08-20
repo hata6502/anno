@@ -65,7 +65,7 @@ const mark = async ({
   includesPrefix: boolean;
   includesSuffix: boolean;
 }) => {
-  const { annoProjectName } = await chrome.storage.local.get(
+  const { annoProjectName } = await chrome.storage.sync.get(
     initialStorageValues
   );
   if (!annoProjectName) {
@@ -157,7 +157,7 @@ const inject = async ({
     signal,
   });
 
-  const { annoProjectName } = await chrome.storage.local.get(
+  const { annoProjectName } = await chrome.storage.sync.get(
     initialStorageValues
   );
   if (!annoProjectName) {
@@ -593,7 +593,7 @@ chrome.runtime.onMessage.addListener(
 
 chrome.runtime.onMessageExternal.addListener(
   async (externalBackgroundMessage: ExternalBackgroundMessage) => {
-    const { annoProjectName } = await chrome.storage.local.get(
+    const { annoProjectName } = await chrome.storage.sync.get(
       initialStorageValues
     );
     if (!annoProjectName) {
