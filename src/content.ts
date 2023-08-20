@@ -146,7 +146,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
       prevURL = undefined;
-      checkURLChange();
+      handleDocumentChange();
       break;
     }
 
@@ -249,6 +249,19 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             const scrollableAncestorElement =
               ancestorElement ?? document.documentElement;
 
+            const nextRange = new Range();
+            const firstTextNode = textNodes.at(0);
+            if (firstTextNode) {
+              nextRange.setStart(firstTextNode, 0);
+            }
+            const lastTextNode = textNodes.at(-1);
+            if (lastTextNode) {
+              nextRange.setEnd(
+                lastTextNode,
+                lastTextNode.textContent?.length ?? 0
+              );
+            }
+
             const barmapWidth = 16;
             const barmapElement = document.createElement("button");
             barmapElement.style.all = "unset";
@@ -262,7 +275,24 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             barmapElement.style.zIndex = "2147483647";
 
             barmapElement.addEventListener("click", () => {
-              markElements.at(0)?.scrollIntoView({ block: "center" });
+              const { exact, prefix, suffix } = quoteText(
+                getTextIndex(document.body),
+                nextRange
+              );
+
+              const url = new URL(location.href);
+              url.hash = `#${[
+                `e=${encodeForScrapboxReadableLink(exact)}`,
+                ...(prefix
+                  ? [`p=${encodeForScrapboxReadableLink(prefix)}`]
+                  : []),
+                ...(suffix
+                  ? [`s=${encodeForScrapboxReadableLink(suffix)}`]
+                  : []),
+              ].join("&")}`;
+              history.pushState(null, "", url);
+              prevURL = undefined;
+              handleDocumentChange();
             });
 
             document.body.append(barmapElement);
@@ -315,19 +345,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             handleScroll();
             addEventListener("scroll", handleScroll, true);
 
-            const nextRange = new Range();
-            const firstTextNode = textNodes.at(0);
-            if (firstTextNode) {
-              nextRange.setStart(firstTextNode, 0);
-            }
-            const lastTextNode = textNodes.at(-1);
-            if (lastTextNode) {
-              nextRange.setEnd(
-                lastTextNode,
-                lastTextNode.textContent?.length ?? 0
-              );
-            }
-
             return {
               range: nextRange,
               cleanUp: () => {
@@ -360,7 +377,12 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   }
 });
 
+let isHighlighted = false;
 const highlight = () => {
+  if (isHighlighted) {
+    return;
+  }
+
   let triedSearchParams;
   try {
     triedSearchParams = new URLSearchParams(location.hash.slice(1));
@@ -391,32 +413,23 @@ const highlight = () => {
       : range.startContainer.parentElement;
   startElement?.scrollIntoView({ block: "center" });
 
-  const hashRemovedURL = new URL(location.href);
-  hashRemovedURL.hash = "";
-  history.replaceState(null, "", hashRemovedURL);
+  isHighlighted = true;
 };
 
 let prevURL: string | undefined;
 const checkURLChange = () => {
-  if (prevURL !== getURL()) {
+  if (prevURL !== location.href) {
     const urlChangeMessage: BackgroundMessage = {
       type: "urlChange",
       url: getURL(),
     };
     chrome.runtime.sendMessage(urlChangeMessage);
+
+    isHighlighted = false;
   }
 
-  prevURL = getURL();
+  prevURL = location.href;
 };
-
-setInterval(() => {
-  if (!navigator.userActivation.isActive) {
-    return;
-  }
-
-  prevURL = undefined;
-  checkURLChange();
-}, 30000);
 
 const handleDocumentChange = () => {
   checkURLChange();

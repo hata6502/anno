@@ -219,8 +219,6 @@ const inject = async ({
     injectionData: { annopageMap, collaboratedAnnopageLink },
     signal,
   });
-
-  prevInjectionDataMap.set(tabId, { annopageMap, collaboratedAnnopageLink });
 };
 
 const fetchAnnopagesByAnnolink = async ({
@@ -522,6 +520,7 @@ const sendInjectionData = async ({
   }
 
   const { annopageMap, collaboratedAnnopageLink } = injectionData;
+  prevInjectionDataMap.set(tabId, { annopageMap, collaboratedAnnopageLink });
 
   await chrome.storage.local.set(
     Object.fromEntries(
