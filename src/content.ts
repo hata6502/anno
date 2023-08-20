@@ -13,15 +13,16 @@ export type ContentMessage =
   | {
       type: "mark";
       annoProjectName: string;
-      annopageTitle?: string;
-      head?: string;
-      includesPrefix: boolean;
-      includesSuffix: boolean;
+    }
+  | {
+      type: "markWord";
+      annoProjectName: string;
     }
   | {
       type: "inject";
       configs: InjectionConfig[];
       collaboratedAnnopageLink?: Link;
+      markedWordsPageLink?: Link;
     };
 
 export interface InjectionConfig {
@@ -42,22 +43,75 @@ const getURL = () => {
   return String(url);
 };
 
+const write = async ({
+  annopageLink,
+  headerLines,
+  includesPrefix,
+  includesSuffix,
+}: {
+  annopageLink: Link;
+  headerLines: string[];
+  includesPrefix: boolean;
+  includesSuffix: boolean;
+}) => {
+  const lines = [...headerLines];
+
+  const selection = getSelection();
+  const isSelected =
+    selection && !selection.isCollapsed && selection.rangeCount >= 1;
+  if (isSelected) {
+    const textQuoteSelector = quoteText(
+      getTextIndex(document.body),
+      selection.getRangeAt(0)
+    );
+
+    lines.push(
+      `[🍀 ${getURL()}#${[
+        `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
+        ...(includesPrefix && textQuoteSelector.prefix
+          ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
+          : []),
+        ...(includesSuffix && textQuoteSelector.suffix
+          ? [`s=${encodeForScrapboxReadableLink(textQuoteSelector.suffix)}`]
+          : []),
+      ].join("&")}]`
+    );
+    lines.push(
+      ...textQuoteSelector.exact
+        .trim()
+        .replaceAll(/^ +/gm, "")
+        .replaceAll(/\n{2,}/g, "\n")
+        .split("\n")
+        .map((line) => `> ${line}`)
+    );
+  }
+
+  const openMessage: BackgroundMessage = {
+    type: "open",
+    url: `https://scrapbox.io/${encodeURIComponent(
+      annopageLink.projectName
+    )}/${encodeURIComponent(annopageLink.title)}?${new URLSearchParams({
+      body: lines.join("\n"),
+      followRename: "true",
+    })}`,
+  };
+  chrome.runtime.sendMessage(openMessage);
+
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  prevURL = undefined;
+  handleDocumentChange();
+};
+
 let collaboratedAnnopageLink: Link | undefined;
+let markedWordsPageLink: Link | undefined;
 chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   switch (contentMessage.type) {
     case "mark": {
-      const lines = [];
-
       const title = document.title || new Date().toLocaleString();
 
-      const selection = getSelection();
-      const isSelected =
-        selection && !selection.isCollapsed && selection.rangeCount >= 1;
-
-      if (contentMessage.head) {
-        lines.push(...contentMessage.head.split("\n"));
-      } else if (!collaboratedAnnopageLink) {
-        lines.push(`[${title} ${getURL()}]`);
+      const headerLines = [];
+      if (!collaboratedAnnopageLink) {
+        headerLines.push(`[${title} ${getURL()}]`);
 
         const ogImageElement = window.document.querySelector(
           'meta[property="og:image" i]'
@@ -66,7 +120,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           ogImageElement instanceof window.HTMLMetaElement &&
           ogImageElement.content;
         if (ogImageURL) {
-          lines.push(`[${ogImageURL}#.png]`);
+          headerLines.push(`[${ogImageURL}#.png]`);
         }
 
         const descriptionElement = window.document.querySelector(
@@ -81,7 +135,9 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           (descriptionElement instanceof window.HTMLMetaElement &&
             descriptionElement.content);
         if (description) {
-          lines.push(...description.split("\n").map((line) => `> ${line}`));
+          headerLines.push(
+            ...description.split("\n").map((line) => `> ${line}`)
+          );
         }
 
         const keywordsElement = window.document.querySelector(
@@ -91,62 +147,44 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           keywordsElement instanceof window.HTMLMetaElement &&
           keywordsElement.content;
         if (keywords) {
-          lines.push(keywords);
+          headerLines.push(keywords);
         }
 
-        lines.push(`[${decodeURI(getAnnolink(getURL()))}]`);
-        lines.push("");
+        headerLines.push(`[${decodeURI(getAnnolink(getURL()))}]`);
+        headerLines.push("");
       }
 
-      if (isSelected) {
-        const textQuoteSelector = quoteText(
-          getTextIndex(document.body),
-          selection.getRangeAt(0)
-        );
-
-        lines.push(
-          `[🍀 ${getURL()}#${[
-            `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
-            ...(contentMessage.includesPrefix && textQuoteSelector.prefix
-              ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
-              : []),
-            ...(contentMessage.includesSuffix && textQuoteSelector.suffix
-              ? [`s=${encodeForScrapboxReadableLink(textQuoteSelector.suffix)}`]
-              : []),
-          ].join("&")}]`
-        );
-        lines.push(
-          ...textQuoteSelector.exact
-            .trim()
-            .replaceAll(/^ +/gm, "")
-            .replaceAll(/\n{2,}/g, "\n")
-            .split("\n")
-            .map((line) => `> ${line}`)
-        );
-      }
-
-      const annopageLink = (contentMessage.annopageTitle && {
-        projectName: contentMessage.annoProjectName,
-        title: contentMessage.annopageTitle,
-      }) ||
-        collaboratedAnnopageLink || {
+      await write({
+        annopageLink: collaboratedAnnopageLink || {
           projectName: contentMessage.annoProjectName,
           title,
-        };
-      const openMessage: BackgroundMessage = {
-        type: "open",
-        url: `https://scrapbox.io/${encodeURIComponent(
-          annopageLink.projectName
-        )}/${encodeURIComponent(annopageLink.title)}?${new URLSearchParams({
-          body: lines.join("\n"),
-          followRename: "true",
-        })}`,
-      };
-      chrome.runtime.sendMessage(openMessage);
+        },
+        headerLines,
+        includesPrefix: true,
+        includesSuffix: true,
+      });
+      break;
+    }
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      prevURL = undefined;
-      handleDocumentChange();
+    case "markWord": {
+      const headerLines = [];
+      if (!markedWordsPageLink) {
+        headerLines.push(
+          "[anno word marker https://help.hata6502.com/--64e1b4ed04e75e001bab5d79]"
+        );
+        headerLines.push("[annos:/]");
+        headerLines.push("");
+      }
+
+      await write({
+        annopageLink: markedWordsPageLink || {
+          projectName: contentMessage.annoProjectName,
+          title: "Marked words",
+        },
+        headerLines,
+        includesPrefix: false,
+        includesSuffix: false,
+      });
       break;
     }
 
@@ -367,6 +405,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
       );
 
       collaboratedAnnopageLink = contentMessage.collaboratedAnnopageLink;
+      markedWordsPageLink = contentMessage.markedWordsPageLink;
       break;
     }
 

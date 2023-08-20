@@ -41,6 +41,7 @@ interface Annopage {
 interface InjectionData {
   annopageMap: Map<string, Annopage>;
   collaboratedAnnopageLink?: Link;
+  markedWordsPageLink?: Link;
 }
 
 interface Project {
@@ -52,19 +53,7 @@ const fetchQueue = new PQueue({ interval: 5000, intervalCap: 5 });
 const queuedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
-const mark = async ({
-  tabId,
-  annopageTitle,
-  head,
-  includesPrefix,
-  includesSuffix,
-}: {
-  tabId: number;
-  annopageTitle?: string;
-  head?: string;
-  includesPrefix: boolean;
-  includesSuffix: boolean;
-}) => {
+const mark = async ({ tabId }: { tabId: number }) => {
   const { annoProjectName } = await chrome.storage.sync.get(
     initialStorageValues
   );
@@ -73,22 +62,28 @@ const mark = async ({
     return;
   }
 
-  const markMessage: ContentMessage = {
-    type: "mark",
-    annoProjectName,
-    annopageTitle,
-    head,
-    includesPrefix,
-    includesSuffix,
-  };
+  const markMessage: ContentMessage = { type: "mark", annoProjectName };
   chrome.tabs.sendMessage(tabId, markMessage);
+};
+
+const markWord = async ({ tabId }: { tabId: number }) => {
+  const { annoProjectName } = await chrome.storage.sync.get(
+    initialStorageValues
+  );
+  if (!annoProjectName) {
+    chrome.runtime.openOptionsPage();
+    return;
+  }
+
+  const markWordMessage: ContentMessage = { type: "markWord", annoProjectName };
+  chrome.tabs.sendMessage(tabId, markWordMessage);
 };
 
 chrome.action.onClicked.addListener(async (tab) => {
   if (typeof tab.id !== "number") {
     return;
   }
-  await mark({ tabId: tab.id, includesPrefix: true, includesSuffix: true });
+  await mark({ tabId: tab.id });
 });
 
 chrome.contextMenus.create({
@@ -108,23 +103,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   switch (info.menuItemId) {
     case "mark": {
-      await mark({
-        tabId: tab.id,
-        includesPrefix: true,
-        includesSuffix: true,
-      });
+      await mark({ tabId: tab.id });
       break;
     }
 
     case "markWord": {
-      await mark({
-        tabId: tab.id,
-        annopageTitle: "Marked words",
-        head: `[annos:/]
-`,
-        includesPrefix: false,
-        includesSuffix: false,
-      });
+      await markWord({ tabId: tab.id });
       break;
     }
   }
@@ -151,9 +135,14 @@ const inject = async ({
   const prevInjectionData = prevInjectionDataMap.get(tabId);
   const annopageMap = new Map(prevInjectionData?.annopageMap);
   let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
+  let markedWordsPageLink = prevInjectionData?.markedWordsPageLink;
   await sendInjectionData({
     tabId,
-    injectionData: { annopageMap, collaboratedAnnopageLink },
+    injectionData: {
+      annopageMap,
+      collaboratedAnnopageLink,
+      markedWordsPageLink,
+    },
     signal,
   });
 
@@ -194,15 +183,19 @@ const inject = async ({
       annopageIDs.push(annopageID);
     }
 
-    const firstAnnopageEntries = annopageEntries.at(0);
-    if (!annolinkIndex && firstAnnopageEntries) {
-      const [, firstAnnopage] = firstAnnopageEntries;
-      collaboratedAnnopageLink = firstAnnopage;
+    if (annolinkIndex === 0) {
+      collaboratedAnnopageLink = annopageEntries.at(0)?.[1];
+    } else if (annolinkIndex === annolinks.length - 1) {
+      markedWordsPageLink = annopageEntries.at(-1)?.[1];
     }
 
     await sendInjectionData({
       tabId,
-      injectionData: { annopageMap, collaboratedAnnopageLink },
+      injectionData: {
+        annopageMap,
+        collaboratedAnnopageLink,
+        markedWordsPageLink,
+      },
       signal,
     });
   }
@@ -216,7 +209,11 @@ const inject = async ({
   }
   await sendInjectionData({
     tabId,
-    injectionData: { annopageMap, collaboratedAnnopageLink },
+    injectionData: {
+      annopageMap,
+      collaboratedAnnopageLink,
+      markedWordsPageLink,
+    },
     signal,
   });
 };
@@ -519,8 +516,9 @@ const sendInjectionData = async ({
     throw new DOMException("Aborted", "AbortError");
   }
 
-  const { annopageMap, collaboratedAnnopageLink } = injectionData;
-  prevInjectionDataMap.set(tabId, { annopageMap, collaboratedAnnopageLink });
+  prevInjectionDataMap.set(tabId, injectionData);
+  const { annopageMap, collaboratedAnnopageLink, markedWordsPageLink } =
+    injectionData;
 
   await chrome.storage.local.set(
     Object.fromEntries(
@@ -532,6 +530,7 @@ const sendInjectionData = async ({
     type: "inject",
     configs: [...annopageMap].flatMap(([, { configs }]) => configs),
     collaboratedAnnopageLink,
+    markedWordsPageLink,
   };
   chrome.tabs.sendMessage(tabId, injectMessage);
 };
