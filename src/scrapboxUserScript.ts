@@ -1,5 +1,5 @@
 import type { ExternalBackgroundMessage } from "./background";
-import { annoProtocolMap } from "./url";
+import { annoProtocolMap, encodeForScrapboxReadableLink } from "./url";
 
 const EXTENSION_ID = process.env.EXTENSION_ID;
 if (!EXTENSION_ID) {
@@ -7,10 +7,10 @@ if (!EXTENSION_ID) {
 }
 
 const annoImageURL = "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
-const menuTitle = "Collaborate with anno";
+const collaborateMenuTitle = "Collaborate with anno";
 // @ts-expect-error
 scrapbox.PageMenu.addMenu({
-  title: menuTitle,
+  title: collaborateMenuTitle,
   image: annoImageURL,
   onClick: () => {
     if (!collaborateMessage) {
@@ -20,14 +20,37 @@ scrapbox.PageMenu.addMenu({
     chrome.runtime.sendMessage(EXTENSION_ID, collaborateMessage);
   },
 });
-const disabledMenuTitle =
+const disabledCollaborateMenuTitle =
   "Can't Collaborate with anno because this Scrapbox page has no annolinks. ";
 // @ts-expect-error
 scrapbox.PageMenu.addMenu({
-  title: disabledMenuTitle,
+  title: disabledCollaborateMenuTitle,
   image: annoImageURL,
   onClick: () => {
     open("https://help.hata6502.com/--645f907ca0871c001cf70daf");
+  },
+});
+
+const markWordMenuTitle = "Mark word by anno";
+// @ts-expect-error
+scrapbox.PageMenu.addMenu({
+  title: markWordMenuTitle,
+  image: "https://i.gyazo.com/2e9dc1b43de352164a90a6d284ce0175.png",
+  onClick: () => {
+    const word = prompt("Word");
+    if (!word) {
+      return;
+    }
+
+    location.search = `?${new URLSearchParams({
+      body: `[🍀 https://help.hata6502.com/--64e1b4ed04e75e001bab5d79#e=${encodeForScrapboxReadableLink(
+        word
+      )}]
+${word
+  .split("\n")
+  .map((line) => `> ${line}`)
+  .join("\n")}`,
+    })}`;
   },
 });
 
@@ -35,13 +58,17 @@ const styleElement = document.createElement("style");
 document.head.append(styleElement);
 const setStyle = ({ isCollaboratable }: { isCollaboratable: boolean }) => {
   styleElement.textContent = `
-    #${CSS.escape(menuTitle)} {
+    #${CSS.escape(collaborateMenuTitle)} {
       ${isCollaboratable ? "" : "display: none;"}
     }
 
-    #${CSS.escape(disabledMenuTitle)} {
+    #${CSS.escape(disabledCollaborateMenuTitle)} {
       filter: saturate(0%);
       ${isCollaboratable ? "display: none;" : ""}
+    }
+
+    #${CSS.escape(markWordMenuTitle)} {
+      ${isCollaboratable ? "" : "display: none;"}
     }
   `;
 };

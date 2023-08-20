@@ -10,4 +10,5 @@ $ dotenv npm run build
 
 The following creations are included in this product:
 
+- [google/material-design-icons](https://github.com/google/material-design-icons/blob/master/LICENSE)
 - [googlefonts/noto-emoji](https://github.com/googlefonts/noto-emoji/blob/main/LICENSE)
