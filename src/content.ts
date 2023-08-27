@@ -9,6 +9,11 @@ import {
 } from "text-quote-selector";
 import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 
+addEventListener("error", async (event) => {
+  alert(event.error.message);
+  alert(event.error.stack);
+});
+
 export type ContentMessage =
   | {
       type: "mark";
@@ -274,11 +279,11 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 const iframeElement = document.createElement("iframe");
 
                 iframeElement.src = url;
-                iframeElement.sandbox.add(
+                /*iframeElement.sandbox.add(
                   "allow-popups",
                   "allow-popups-to-escape-sandbox",
                   "allow-scripts"
-                );
+                );*/
 
                 iframeElement.style.all = "revert";
                 iframeElement.style.width = `${width}px`;
