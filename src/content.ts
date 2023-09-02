@@ -190,9 +190,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
     case "markWord": {
       const headerLines = [];
       if (!prevInjectionData?.markedWordsPageLink) {
-        headerLines.push(
-          "[anno word marker https://help.hata6502.com/--64e1b4ed04e75e001bab5d79]"
-        );
+        headerLines.push("[/hata6502/anno word marker]");
         headerLines.push("[annos:/]");
         headerLines.push("");
       }

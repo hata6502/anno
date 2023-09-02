@@ -27,7 +27,9 @@ scrapbox.PageMenu.addMenu({
   title: disabledCollaborateMenuTitle,
   image: annoImageURL,
   onClick: () => {
-    open("https://help.hata6502.com/--645f907ca0871c001cf70daf");
+    open(
+      "https://scrapbox.io/hata6502/Can't_Collaborate_with_anno_because_this_Scrapbox_page_has_no_annolinks"
+    );
   },
 });
 
@@ -43,7 +45,7 @@ scrapbox.PageMenu.addMenu({
     }
 
     location.search = `?${new URLSearchParams({
-      body: `[🍀 https://help.hata6502.com/--64e1b4ed04e75e001bab5d79#e=${encodeForScrapboxReadableLink(
+      body: `[🍀 https://scrapbox.io/hata6502/anno_word_marker#e=${encodeForScrapboxReadableLink(
         word
       )}]
 ${word
