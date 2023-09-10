@@ -15,3 +15,5 @@ mutationObserver.observe(document, {
   childList: true,
   characterData: true,
 });
+
+export {};

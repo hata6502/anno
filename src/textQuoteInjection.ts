@@ -41,46 +41,50 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
       }
   );
 
-  handleMutation();
+  handle();
 };
 
 let injections: Injection[] = [];
-const handleMutation = () => {
+const handle = () => {
+  resizeObserver.disconnect();
   mutationObserver.disconnect();
+  try {
+    const textIndex = getTextIndex(document.body);
+    injections = injections
+      .map((injection) => ({
+        injection,
+        ranges: getNearestRanges(textIndex, injection.config.textQuoteSelector),
+      }))
+      .map(({ injection, ranges }) => {
+        for (const state of injection.states) {
+          if (ranges.some((range) => isEqualRange(range, state.range))) {
+            continue;
+          }
 
-  const textIndex = getTextIndex(document.body);
-  injections = injections
-    .map((injection) => ({
-      injection,
-      ranges: getNearestRanges(textIndex, injection.config.textQuoteSelector),
-    }))
-    .map(({ injection, ranges }) => {
-      for (const state of injection.states) {
-        if (ranges.some((range) => isEqualRange(range, state.range))) {
-          continue;
+          state.cleanUp();
         }
 
-        state.cleanUp();
-      }
-
-      return {
-        ...injection,
-        states: ranges.map(
-          (range) =>
-            injection.states.find((state) =>
-              isEqualRange(state.range, range)
-            ) ?? injection.config.inject(range)
-        ),
-      };
+        return {
+          ...injection,
+          states: ranges.map(
+            (range) =>
+              injection.states.find((state) =>
+                isEqualRange(state.range, range)
+              ) ?? injection.config.inject(range)
+          ),
+        };
+      });
+  } finally {
+    resizeObserver.observe(document.body);
+    mutationObserver.observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
     });
-
-  mutationObserver.observe(document.body, {
-    subtree: true,
-    childList: true,
-    characterData: true,
-  });
+  }
 };
-const mutationObserver = new MutationObserver(handleMutation);
+const resizeObserver = new ResizeObserver(handle);
+const mutationObserver = new MutationObserver(handle);
 
 const getNearestRanges = (
   textIndex: TextIndex,

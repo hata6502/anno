@@ -16,6 +16,10 @@
   },
   "content_scripts": [
     {
+      "matches": ["https://gyazo.com/*"],
+      "js": ["dist/gyanno.js"]
+    },
+    {
       "matches": ["https://scrapbox.io/*"],
       "js": ["dist/scrapboxContent.js"]
     },
