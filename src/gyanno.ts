@@ -10,6 +10,19 @@
 //   color: transparent
 //   もっと薄く
 
+interface Annotation {
+  description: string;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+interface Scale {
+  width: number;
+  height: number;
+}
+
 const styleElement = document.createElement("style");
 styleElement.textContent = `
   :root {
@@ -34,33 +47,21 @@ styleElement.textContent = `
 `;
 document.head.append(styleElement);
 
-const cache = new Map<string, Promise<any>>();
+const cache = new Map<
+  string,
+  Promise<{ annotations: Annotation[]; scale: Scale }>
+>();
 let cleanUp: (() => void) | undefined;
-let prevInjections = [];
 const gyanno = async () => {
   const selection = getSelection();
   if (!selection || !selection.isCollapsed) {
     return;
   }
 
-  const match = location.pathname.match(/^\/([0-9a-z]{32})/);
-  if (!match) {
-    return;
-  }
-  const url = `https://gyazo.com/${encodeURIComponent(match[1])}.json`;
-  const responsePromise =
-    cache.get(url) ??
-    (async () => {
-      const response = await fetch(url);
-      return response.json();
-    })();
-  cache.set(url, responsePromise);
-  const { scale, metadata } = await responsePromise;
-
   const imageViewerElement = document.querySelector(
     ".image-box-component .image-viewer"
   );
-  if (!imageViewerElement) {
+  if (!(imageViewerElement instanceof HTMLElement)) {
     return;
   }
   const imageViewerRect = imageViewerElement.getBoundingClientRect();
@@ -68,39 +69,127 @@ const gyanno = async () => {
     return;
   }
 
-  const injections = metadata.ocrAnnotations.map(
-    ({ description, boundingPoly }) => {
-      const minX = boundingPoly.vertices[0].x;
-      const minY = boundingPoly.vertices[0].y;
-      const maxX = boundingPoly.vertices[2].x;
-      const maxY = boundingPoly.vertices[2].y;
-
-      const width = maxX - minX;
-      const height = maxY - minY;
-
-      return {
-        description,
-        left:
-          scrollX +
-          imageViewerRect.left +
-          (minX / scale.width) * imageViewerRect.width,
-        top:
-          scrollY +
-          imageViewerRect.top +
-          (minY / scale.height) * imageViewerRect.height,
-        width: (width / scale.width) * imageViewerRect.width,
-        height: (height / scale.height) * imageViewerRect.height,
-        fontSize: Math.min(
-          (width / scale.width) * imageViewerRect.width,
-          (height / scale.height) * imageViewerRect.height
-        ),
-        writingMode: width < height ? "vertical-lr" : "horizontal-tb",
-      };
+  const getStyle = ({
+    annotation,
+    scale,
+  }: {
+    annotation: Annotation;
+    scale: Scale;
+  }) => {
+    let width =
+      ((annotation.maxX - annotation.minX) / scale.width) *
+      imageViewerRect.width;
+    let height =
+      ((annotation.maxY - annotation.minY) / scale.height) *
+      imageViewerRect.height;
+    if (annotation.description.length === 1) {
+      width = height = Math.max(width, height);
     }
-  );
-  if (JSON.stringify(injections) === JSON.stringify(prevInjections)) {
+
+    return {
+      left:
+        scrollX +
+        imageViewerRect.left +
+        (annotation.minX / scale.width) * imageViewerRect.width,
+      top:
+        scrollY +
+        imageViewerRect.top +
+        (annotation.minY / scale.height) * imageViewerRect.height,
+      width,
+      height,
+      fontSize: Math.min(width, height),
+      writingMode: width < height ? "vertical-rl" : "horizontal-tb",
+    };
+  };
+
+  const getNeighborAnnotation = ({
+    a,
+    b,
+    scale,
+  }: {
+    a: Annotation;
+    b: Annotation;
+    scale: Scale;
+  }) => {
+    const aStyle = getStyle({ annotation: a, scale });
+    const bStyle = getStyle({ annotation: b, scale });
+    if (
+      aStyle.left + aStyle.width + aStyle.fontSize / 2 <
+        bStyle.left - bStyle.fontSize / 2 ||
+      aStyle.top + aStyle.height + aStyle.fontSize / 2 <
+        bStyle.top - bStyle.fontSize / 2 ||
+      bStyle.left + bStyle.width + bStyle.fontSize / 2 <
+        aStyle.left - aStyle.fontSize / 2 ||
+      bStyle.top + bStyle.height + bStyle.fontSize / 2 <
+        aStyle.top - aStyle.fontSize / 2
+    ) {
+      return;
+    }
+
+    const neighbor = {
+      description: `${a.description}${b.description}`,
+      minX: Math.min(a.minX, b.minX),
+      minY: Math.min(a.minY, b.minY),
+      maxX: Math.max(a.maxX, b.maxX),
+      maxY: Math.max(a.maxY, b.maxY),
+    };
+
+    const neighborStyle = getStyle({ annotation: neighbor, scale });
+    if (
+      Math.abs(neighborStyle.fontSize - aStyle.fontSize) >= aStyle.fontSize ||
+      Math.abs(neighborStyle.fontSize - bStyle.fontSize) >= bStyle.fontSize
+    ) {
+      return;
+    }
+
+    return neighbor;
+  };
+
+  const match = location.pathname.match(/^\/([0-9a-z]{32})/);
+  if (!match) {
     return;
   }
+  const url = `https://gyazo.com/${encodeURIComponent(match[1])}.json`;
+  const annotationsPromise =
+    cache.get(url) ??
+    (async () => {
+      const response = await fetch(url);
+      const { scale, metadata } = await response.json();
+
+      const annotations: Annotation[] = metadata.ocrAnnotations.map(
+        // @ts-expect-error
+        ({ description, boundingPoly }) => ({
+          description,
+          minX: boundingPoly.vertices[0].x,
+          minY: boundingPoly.vertices[0].y,
+          maxX: boundingPoly.vertices[2].x,
+          maxY: boundingPoly.vertices[2].y,
+        })
+      );
+      console.log(annotations);
+
+      let mergedAnnotations;
+      do {
+        mergedAnnotations = undefined;
+        for (const [aIndex, a] of annotations.entries()) {
+          for (const [bIndex, b] of annotations.slice(aIndex + 1).entries()) {
+            mergedAnnotations = getNeighborAnnotation({ a, b, scale });
+            if (mergedAnnotations) {
+              annotations[aIndex] = mergedAnnotations;
+              annotations.splice(bIndex + aIndex + 1, 1);
+              break;
+            }
+          }
+          if (mergedAnnotations) {
+            break;
+          }
+        }
+      } while (mergedAnnotations);
+      console.log(annotations);
+      return { annotations, scale };
+    })();
+  cache.set(url, annotationsPromise);
+  const { annotations, scale } = await annotationsPromise;
 
   cleanUp?.();
   cleanUp = undefined;
@@ -112,21 +201,19 @@ const gyanno = async () => {
     ".image-box-component .image-close-btn-bg"
   ).style.display = "none";
 
-  const divElements = injections.map(
-    ({ description, left, top, width, height, fontSize, writingMode }) => {
-      const divElement = document.createElement("div");
-      divElement.textContent = description;
-      divElement.classList.add("gyanno");
-      divElement.style.left = `${left}px`;
-      divElement.style.top = `${top}px`;
-      divElement.style.width = `${width}px`;
-      divElement.style.height = `${height}px`;
-      divElement.style.fontSize = `${fontSize}px`;
-      divElement.style.writingMode = writingMode;
-      return divElement;
-    }
-  );
-  prevInjections = injections;
+  const divElements = annotations.map((annotation) => {
+    const style = getStyle({ annotation, scale });
+    const divElement = document.createElement("div");
+    divElement.textContent = annotation.description;
+    divElement.classList.add("gyanno");
+    divElement.style.left = `${style.left}px`;
+    divElement.style.top = `${style.top}px`;
+    divElement.style.width = `${style.width}px`;
+    divElement.style.height = `${style.height}px`;
+    divElement.style.fontSize = `${style.fontSize}px`;
+    divElement.style.writingMode = style.writingMode;
+    return divElement;
+  });
 
   for (const divElement of divElements) {
     document.body.append(divElement);
@@ -139,12 +226,10 @@ const gyanno = async () => {
 };
 
 const handle = async () => {
-  resizeObserver.disconnect();
   mutationObserver.disconnect();
   try {
     await gyanno();
   } finally {
-    resizeObserver.observe(document.body);
     mutationObserver.observe(document.body, {
       subtree: true,
       childList: true,
@@ -152,8 +237,7 @@ const handle = async () => {
     });
   }
 };
-const resizeObserver = new ResizeObserver(handle);
 const mutationObserver = new MutationObserver(handle);
-handle();
+new ResizeObserver(handle).observe(document.body);
 
 export {};
