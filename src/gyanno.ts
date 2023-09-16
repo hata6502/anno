@@ -169,6 +169,7 @@ const gyanno = async () => {
         })
       );
       console.log(annotations);
+      console.time("merge");
 
       let mergedAnnotations;
       do {
@@ -188,6 +189,7 @@ const gyanno = async () => {
         }
       } while (mergedAnnotations);
       console.log(annotations);
+      console.timeEnd("merge");
       return { annotations, scale };
     })();
   cache.set(url, annotationsPromise);
