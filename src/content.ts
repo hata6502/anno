@@ -359,58 +359,53 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             document.body.append(barmapElement);
 
             const handle = () => {
-              resizeObserver.disconnect();
-              try {
-                const elements = [...markElements, ...iframeElements];
+              const elements = [...markElements, ...iframeElements];
 
-                const isVisible = elements.some(
-                  (element) => element.offsetParent
-                );
+              const isVisible = elements.some(
+                (element) => element.offsetParent
+              );
 
-                const scrollableAncestorDOMRect =
-                  scrollableAncestorElement === document.documentElement
-                    ? new DOMRect()
-                    : scrollableAncestorElement.getBoundingClientRect();
-                const domRects = elements.map((element) =>
-                  element.getBoundingClientRect()
-                );
+              const scrollableAncestorDOMRect =
+                scrollableAncestorElement === document.documentElement
+                  ? new DOMRect()
+                  : scrollableAncestorElement.getBoundingClientRect();
+              const domRects = elements.map((element) =>
+                element.getBoundingClientRect()
+              );
 
-                const top = Math.min(...domRects.map((domRect) => domRect.top));
-                const bottom = Math.max(
-                  ...domRects.map((domRect) => domRect.bottom)
-                );
+              const top = Math.min(...domRects.map((domRect) => domRect.top));
+              const bottom = Math.max(
+                ...domRects.map((domRect) => domRect.bottom)
+              );
 
-                const clientTop =
-                  ((scrollableAncestorElement.scrollTop +
-                    (top - scrollableAncestorDOMRect.top)) /
-                    scrollableAncestorElement.scrollHeight) *
-                  scrollableAncestorElement.clientHeight;
-                const clientBottom =
-                  ((scrollableAncestorElement.scrollTop +
-                    (bottom - scrollableAncestorDOMRect.top)) /
-                    scrollableAncestorElement.scrollHeight) *
-                  scrollableAncestorElement.clientHeight;
+              const clientTop =
+                ((scrollableAncestorElement.scrollTop +
+                  (top - scrollableAncestorDOMRect.top)) /
+                  scrollableAncestorElement.scrollHeight) *
+                scrollableAncestorElement.clientHeight;
+              const clientBottom =
+                ((scrollableAncestorElement.scrollTop +
+                  (bottom - scrollableAncestorDOMRect.top)) /
+                  scrollableAncestorElement.scrollHeight) *
+                scrollableAncestorElement.clientHeight;
 
-                barmapElement.style.display = isVisible ? "block" : "none";
-                barmapElement.style.left = `${
-                  scrollableAncestorDOMRect.left +
-                  scrollableAncestorElement.clientWidth -
-                  barmapWidth
-                }px`;
-                barmapElement.style.top = `${
-                  scrollableAncestorDOMRect.top + clientTop - 8
-                }px`;
-                barmapElement.style.height = `${Math.max(
-                  clientBottom - clientTop,
-                  4
-                )}px`;
-              } finally {
-                resizeObserver.observe(document.body);
-              }
+              barmapElement.style.display = isVisible ? "block" : "none";
+              barmapElement.style.left = `${
+                scrollableAncestorDOMRect.left +
+                scrollableAncestorElement.clientWidth -
+                barmapWidth
+              }px`;
+              barmapElement.style.top = `${
+                scrollableAncestorDOMRect.top + clientTop - 8
+              }px`;
+              barmapElement.style.height = `${Math.max(
+                clientBottom - clientTop,
+                4
+              )}px`;
             };
-            const resizeObserver = new ResizeObserver(handle);
             addEventListener("scroll", handle, true);
-            handle();
+            const resizeObserver = new ResizeObserver(handle);
+            resizeObserver.observe(document.body);
 
             return {
               range: nextRange,

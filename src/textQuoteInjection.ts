@@ -21,6 +21,7 @@ interface State {
   cleanUp: () => void;
 }
 
+let injections: Injection[] = [];
 export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
   const configIDs = configs.map(({ id }) => id);
   for (const { config, states } of injections) {
@@ -40,13 +41,9 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
         states: [],
       }
   );
-
-  handle();
 };
 
-let injections: Injection[] = [];
 const handle = () => {
-  resizeObserver.disconnect();
   mutationObserver.disconnect();
   try {
     const textIndex = getTextIndex(document.body);
@@ -75,7 +72,6 @@ const handle = () => {
         };
       });
   } finally {
-    resizeObserver.observe(document.body);
     mutationObserver.observe(document.body, {
       subtree: true,
       childList: true,
@@ -83,8 +79,8 @@ const handle = () => {
     });
   }
 };
-const resizeObserver = new ResizeObserver(handle);
 const mutationObserver = new MutationObserver(handle);
+new ResizeObserver(handle).observe(document.body);
 
 const getNearestRanges = (
   textIndex: TextIndex,
