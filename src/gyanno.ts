@@ -36,8 +36,8 @@ styleElement.textContent = `
   .gyanno {
     position: absolute;
     color: transparent;
-    text-align-last: justify;
-    white-space: nowrap;
+    font-family: monospace;
+    font-size: 10px;
     user-select: text;
 
     &::selection {
@@ -98,7 +98,6 @@ const gyanno = async () => {
       width,
       height,
       fontSize: Math.min(width, height),
-      writingMode: width < height ? "vertical-rl" : "horizontal-tb",
     };
   };
 
@@ -201,18 +200,33 @@ const gyanno = async () => {
     ".image-box-component .image-close-btn-bg"
   ).style.display = "none";
 
-  const divElements = annotations.map((annotation) => {
+  const divElements = annotations.flatMap((annotation) => {
     const style = getStyle({ annotation, scale });
-    const divElement = document.createElement("div");
-    divElement.textContent = annotation.description;
-    divElement.classList.add("gyanno");
-    divElement.style.left = `${style.left}px`;
-    divElement.style.top = `${style.top}px`;
-    divElement.style.width = `${style.width}px`;
-    divElement.style.height = `${style.height}px`;
-    divElement.style.fontSize = `${style.fontSize}px`;
-    divElement.style.writingMode = style.writingMode;
-    return divElement;
+    const segments = [...new Intl.Segmenter().segment(annotation.description)];
+    const isHorizontal = style.width >= style.height;
+
+    return segments.map((segment, segmentIndex) => {
+      const divElement = document.createElement("div");
+
+      divElement.textContent = segment.segment;
+      divElement.classList.add("gyanno");
+
+      divElement.style.transform = `scale(${style.fontSize / 10})`;
+      divElement.style.writingMode = isHorizontal
+        ? "horizontal-tb"
+        : "vertical-rl";
+
+      const positionRate = segmentIndex / segments.length;
+      if (isHorizontal) {
+        divElement.style.left = `${positionRate * style.width + style.left}px`;
+        divElement.style.top = `${style.top}px`;
+      } else {
+        divElement.style.left = `${style.left}px`;
+        divElement.style.top = `${positionRate * style.height + style.top}px`;
+      }
+
+      return divElement;
+    });
   });
 
   for (const divElement of divElements) {
