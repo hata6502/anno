@@ -10,6 +10,9 @@
 //   color: transparent
 //   もっと薄く
 
+// @ts-expect-error
+import eaw from "eastasianwidth";
+
 interface Annotation {
   description: string;
   minX: number;
@@ -35,10 +38,12 @@ styleElement.textContent = `
 
   .gyanno {
     position: absolute;
-    color: transparent;
+    color: red;
     font-family: monospace;
     font-size: 10px;
+    transform-origin: top left;
     user-select: text;
+    white-space: nowrap;
 
     &::selection {
       background-color: rgb(0, 0, 255, 0.125);
@@ -87,14 +92,8 @@ const gyanno = async () => {
     }
 
     return {
-      left:
-        scrollX +
-        imageViewerRect.left +
-        (annotation.minX / scale.width) * imageViewerRect.width,
-      top:
-        scrollY +
-        imageViewerRect.top +
-        (annotation.minY / scale.height) * imageViewerRect.height,
+      left: (annotation.minX / scale.width) * imageViewerRect.width,
+      top: (annotation.minY / scale.height) * imageViewerRect.height,
       width,
       height,
       fontSize: Math.min(width, height),
@@ -135,14 +134,18 @@ const gyanno = async () => {
 
     const neighborStyle = getStyle({ annotation: neighbor, scale });
     if (
-      Math.abs(neighborStyle.fontSize - aStyle.fontSize) >= aStyle.fontSize ||
-      Math.abs(neighborStyle.fontSize - bStyle.fontSize) >= bStyle.fontSize
+      Math.abs(neighborStyle.fontSize - aStyle.fontSize) >=
+        aStyle.fontSize / 2 ||
+      Math.abs(neighborStyle.fontSize - bStyle.fontSize) >= bStyle.fontSize / 2
     ) {
       return;
     }
 
     return neighbor;
   };
+
+  cleanUp?.();
+  cleanUp = undefined;
 
   const match = location.pathname.match(/^\/([0-9a-z]{32})/);
   if (!match) {
@@ -155,7 +158,7 @@ const gyanno = async () => {
       const response = await fetch(url);
       const { scale, metadata } = await response.json();
 
-      const annotations: Annotation[] = metadata.ocrAnnotations.map(
+      const annotations: Annotation[] = (metadata.ocrAnnotations ?? []).map(
         // @ts-expect-error
         ({ description, boundingPoly }) => ({
           description,
@@ -190,9 +193,6 @@ const gyanno = async () => {
   cache.set(url, annotationsPromise);
   const { annotations, scale } = await annotationsPromise;
 
-  cleanUp?.();
-  cleanUp = undefined;
-
   // 実験なので、いったん拡大機能を止める。
   imageViewerElement.style.cursor = "unset";
   imageViewerElement.style.pointerEvents = "none";
@@ -200,33 +200,28 @@ const gyanno = async () => {
     ".image-box-component .image-close-btn-bg"
   ).style.display = "none";
 
-  const divElements = annotations.flatMap((annotation) => {
+  const divElements = annotations.map((annotation) => {
     const style = getStyle({ annotation, scale });
-    const segments = [...new Intl.Segmenter().segment(annotation.description)];
-    const isHorizontal = style.width >= style.height;
+    const textScale = style.fontSize / 10;
+    const textWidth = (eaw.length(annotation.description) / 2) * style.fontSize;
 
-    return segments.map((segment, segmentIndex) => {
-      const divElement = document.createElement("div");
+    const divElement = document.createElement("div");
 
-      divElement.textContent = segment.segment;
-      divElement.classList.add("gyanno");
+    divElement.textContent = annotation.description;
+    divElement.classList.add("gyanno");
 
-      divElement.style.transform = `scale(${style.fontSize / 10})`;
-      divElement.style.writingMode = isHorizontal
-        ? "horizontal-tb"
-        : "vertical-rl";
+    divElement.style.left = `${style.left + imageViewerRect.left + scrollX}px`;
+    divElement.style.top = `${style.top + imageViewerRect.top + scrollY}px`;
+    divElement.style.letterSpacing = `${
+      (Math.max(style.width, style.height) - textWidth) /
+      annotation.description.length /
+      textScale
+    }px`;
+    divElement.style.transform = `scale(${textScale})`;
+    divElement.style.writingMode =
+      style.width >= style.height ? "horizontal-tb" : "vertical-rl";
 
-      const positionRate = segmentIndex / segments.length;
-      if (isHorizontal) {
-        divElement.style.left = `${positionRate * style.width + style.left}px`;
-        divElement.style.top = `${style.top}px`;
-      } else {
-        divElement.style.left = `${style.left}px`;
-        divElement.style.top = `${positionRate * style.height + style.top}px`;
-      }
-
-      return divElement;
-    });
+    return divElement;
   });
 
   for (const divElement of divElements) {
