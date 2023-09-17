@@ -168,30 +168,23 @@ const gyanno = async () => {
           maxY: boundingPoly.vertices[2].y,
         })
       );
-      console.log(annotations.length);
       console.time("merge");
 
       let mergedAnnotations;
       do {
         mergedAnnotations = undefined;
-        for (const [aIndex, a] of annotations.entries()) {
-          for (const [bIndex, b] of annotations
-            .slice(aIndex + 1)
-            .slice(0, 1)
-            .entries()) {
-            mergedAnnotations = getNeighborAnnotation(a, b);
-            if (mergedAnnotations) {
-              annotations[aIndex] = mergedAnnotations;
-              annotations.splice(bIndex + aIndex + 1, 1);
-              break;
-            }
-          }
+        for (const [aIndex, a] of annotations.slice(0, -1).entries()) {
+          const bIndex = aIndex + 1;
+          const b = annotations[bIndex];
+
+          mergedAnnotations = getNeighborAnnotation(a, b);
           if (mergedAnnotations) {
+            annotations[aIndex] = mergedAnnotations;
+            annotations.splice(bIndex, 1);
             break;
           }
         }
       } while (mergedAnnotations);
-      console.timeEnd("merge");
       console.log(annotations.length);
       return { annotations, scale };
     })();
@@ -210,9 +203,10 @@ const gyanno = async () => {
 
     const boxWidth = (style.width / scale.width) * imageViewerRect.width;
     const boxHeight = (style.height / scale.height) * imageViewerRect.height;
-    const boxLength = Math.max(boxWidth, boxHeight);
 
+    const boxLength = Math.max(boxWidth, boxHeight);
     const fontSize = Math.min(boxWidth, boxHeight);
+
     const textScale = fontSize / 10;
     const textLength = eaw.length(annotation.description) * 0.5 * fontSize;
 
