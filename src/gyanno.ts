@@ -18,14 +18,6 @@ interface Scale {
 
 const styleElement = document.createElement("style");
 styleElement.textContent = `
-  :root {
-    /*
-     * 実験なので、いったん画像以外では範囲選択できないようにする。
-     * 画像内の範囲選択が乱れにくくなる。
-     */
-    user-select: none;
-  }
-
   .anno {
     &.icon {
       position: absolute;
@@ -43,13 +35,12 @@ styleElement.textContent = `
   }
 
   .gyanno {
-    &.overlay {
+    &.text {
       position: absolute;
-      color: transparent;
+      color: red;
       font-family: monospace;
       font-size: 10px;
       transform-origin: top left;
-      user-select: text;
       white-space: pre;
 
       &::selection {
@@ -158,24 +149,19 @@ const gyanno = async () => {
   cache.set(url, annotationsPromise);
   const { annotations, scale } = await annotationsPromise;
 
-  const imageViewerElement = document.querySelector(
-    ".image-box-component .image-viewer"
-  );
-  if (!(imageViewerElement instanceof HTMLElement)) {
+  const imageBoxElement = document.querySelector(".image-box-component");
+  if (!imageBoxElement) {
     return;
   }
-  // 実験なので、いったん拡大機能を止める。
-  imageViewerElement.style.cursor = "unset";
-  imageViewerElement.style.pointerEvents = "none";
-  document.querySelector(
-    ".image-box-component .image-close-btn-bg"
-  ).style.display = "none";
+  const imageBoxRect = imageBoxElement.getBoundingClientRect();
 
-  const imageViewerRect = imageViewerElement.getBoundingClientRect();
-  if (!imageViewerRect.width || !imageViewerRect.height) {
+  const imageViewerRect = document
+    .querySelector(".image-box-component .image-viewer")
+    ?.getBoundingClientRect();
+  if (!imageViewerRect || !imageViewerRect.width || !imageViewerRect.height) {
     return;
   }
-  const overlayElements = annotations.map((annotation) => {
+  const overlayElements = annotations.flatMap((annotation) => {
     const style = getStyle(annotation);
 
     const boxWidth = (style.width / scale.width) * imageViewerRect.width;
@@ -187,42 +173,43 @@ const gyanno = async () => {
     const textScale = fontSize / 10;
     const textLength = eaw.length(annotation.description) * 0.5 * fontSize;
 
-    const overlayElement = document.createElement("div");
+    const textElement = document.createElement("span");
 
-    overlayElement.textContent = `${annotation.description}${" ".repeat(
+    textElement.textContent = `${annotation.description}${" ".repeat(
       annotation.paddingCount
     )}`;
-    overlayElement.classList.add("gyanno", "overlay");
+    textElement.classList.add("gyanno", "text");
 
-    overlayElement.style.left = `${
-      (style.left / scale.width) * imageViewerRect.width +
+    textElement.style.left = `${
+      (style.left / scale.width) * imageViewerRect.width -
+      imageBoxRect.left +
       imageViewerRect.left +
       scrollX
     }px`;
-    overlayElement.style.top = `${
-      (style.top / scale.height) * imageViewerRect.height +
+    textElement.style.top = `${
+      (style.top / scale.height) * imageViewerRect.height -
+      imageBoxRect.top +
       imageViewerRect.top +
       scrollY
     }px`;
 
-    overlayElement.style.letterSpacing = `${
+    textElement.style.letterSpacing = `${
       (boxLength - textLength) / annotation.description.length / textScale
     }px`;
-    overlayElement.style.transform = `scale(${textScale})`;
-    overlayElement.style.writingMode = style.isHorizontal
+    textElement.style.transform = `scale(${textScale})`;
+    textElement.style.writingMode = style.isHorizontal
       ? "horizontal-tb"
       : "vertical-rl";
 
     const breakElement = document.createElement("span");
     breakElement.innerHTML = "<br />".repeat(annotation.breakCount);
     breakElement.classList.add("gyanno", "break");
-    overlayElement.append(breakElement);
 
-    return overlayElement;
+    return [textElement, breakElement];
   });
 
   for (const overlayElement of overlayElements) {
-    document.body.append(overlayElement);
+    imageBoxElement.append(overlayElement);
   }
   cleanUp = () => {
     for (const overlayElement of overlayElements) {
