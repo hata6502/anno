@@ -36,9 +36,25 @@ styleElement.textContent = `
     user-select: none;
   }
 
+  .anno {
+    &.icon {
+      position: absolute;
+      opacity: 0.25;
+
+      &:active, &:focus, &:hover {
+        opacity: unset;
+      }
+    }
+
+    &.marker {
+      background: rgb(255, 255, 0, 0.25);
+      color: transparent;
+    }
+  }
+
   .gyanno {
     position: absolute;
-    color: red;
+    color: transparent;
     font-family: monospace;
     font-size: 10px;
     transform-origin: top left;
@@ -46,7 +62,7 @@ styleElement.textContent = `
     white-space: nowrap;
 
     &::selection {
-      background-color: rgb(0, 0, 255, 0.125);
+      background: rgb(0, 0, 255, 0.125);
     }
   }
 `;

@@ -52,6 +52,34 @@ export interface Link {
   title: string;
 }
 
+const styleElement = document.createElement("style");
+styleElement.textContent = `
+  .anno {
+    &.barmap {
+      all: unset;
+      position: fixed;
+      width: 16px;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      background: rgb(91, 165, 111, 0.5);
+      background-clip: padding-box;
+      cursor: pointer;
+      z-index: 2147483647;
+    }
+
+    &.icon {
+      all: revert;
+      border: none;
+      vertical-align: text-bottom;
+    }
+
+    &.marker {
+      all: revert;
+    }
+  }
+`;
+document.head.append(styleElement);
+
 const getURL = () => {
   const canonicalLinkElement = document.querySelector(
     'link[rel="canonical" i]'
@@ -261,7 +289,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
 
               const markElement = document.createElement("mark");
-              markElement.style.all = "revert";
+              markElement.classList.add("anno", "marker");
               textNode.after(markElement);
               markElement.append(textNode);
               return [markElement];
@@ -277,12 +305,10 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                   "allow-popups-to-escape-sandbox",
                   "allow-scripts"
                 );
+                iframeElement.classList.add("anno", "icon");
 
-                iframeElement.style.all = "revert";
                 iframeElement.style.width = `${width}px`;
                 iframeElement.style.height = `${height}px`;
-                iframeElement.style.border = "none";
-                iframeElement.style.verticalAlign = "text-bottom";
 
                 return iframeElement;
               }
@@ -323,17 +349,8 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               );
             }
 
-            const barmapWidth = 16;
             const barmapElement = document.createElement("button");
-            barmapElement.style.all = "unset";
-            barmapElement.style.position = "fixed";
-            barmapElement.style.width = `${barmapWidth}px`;
-            barmapElement.style.borderTop = `8px solid transparent`;
-            barmapElement.style.borderBottom = `8px solid transparent`;
-            barmapElement.style.background = "rgba(91, 165, 111, 0.5)";
-            barmapElement.style.backgroundClip = "padding-box";
-            barmapElement.style.cursor = "pointer";
-            barmapElement.style.zIndex = "2147483647";
+            barmapElement.classList.add("anno", "barmap");
 
             barmapElement.addEventListener("click", () => {
               const { exact, prefix, suffix } = quoteText(
@@ -393,7 +410,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               barmapElement.style.left = `${
                 scrollableAncestorDOMRect.left +
                 scrollableAncestorElement.clientWidth -
-                barmapWidth
+                16
               }px`;
               barmapElement.style.top = `${
                 scrollableAncestorDOMRect.top + clientTop - 8
