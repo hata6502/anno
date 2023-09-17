@@ -39,7 +39,7 @@ styleElement.textContent = `
   .anno {
     &.icon {
       position: absolute;
-      opacity: 0.25;
+      opacity: 0.5;
 
       &:active, &:focus, &:hover {
         opacity: unset;
@@ -54,7 +54,7 @@ styleElement.textContent = `
 
   .gyanno {
     position: absolute;
-    color: transparent;
+    color: red;
     font-family: monospace;
     font-size: 10px;
     transform-origin: top left;
@@ -90,69 +90,53 @@ const gyanno = async () => {
     return;
   }
 
-  const getStyle = ({
-    annotation,
-    scale,
-  }: {
-    annotation: Annotation;
-    scale: Scale;
-  }) => {
-    let width =
-      ((annotation.maxX - annotation.minX) / scale.width) *
-      imageViewerRect.width;
-    let height =
-      ((annotation.maxY - annotation.minY) / scale.height) *
-      imageViewerRect.height;
-    if (annotation.description.length === 1) {
+  const getStyle = ({ description, minX, minY, maxX, maxY }: Annotation) => {
+    let width = maxX - minX;
+    let height = maxY - minY;
+    if (description.length === 1) {
       width = height = Math.max(width, height);
     }
 
     return {
-      left: (annotation.minX / scale.width) * imageViewerRect.width,
-      top: (annotation.minY / scale.height) * imageViewerRect.height,
+      left: minX,
+      top: minY,
       width,
       height,
-      fontSize: Math.min(width, height),
+      size: Math.min(width, height),
     };
   };
 
-  const getNeighborAnnotation = ({
-    a,
-    b,
-    scale,
-  }: {
-    a: Annotation;
-    b: Annotation;
-    scale: Scale;
-  }) => {
-    const aStyle = getStyle({ annotation: a, scale });
-    const bStyle = getStyle({ annotation: b, scale });
-    if (
-      aStyle.left + aStyle.width + aStyle.fontSize / 2 <
-        bStyle.left - bStyle.fontSize / 2 ||
-      aStyle.top + aStyle.height + aStyle.fontSize / 2 <
-        bStyle.top - bStyle.fontSize / 2 ||
-      bStyle.left + bStyle.width + bStyle.fontSize / 2 <
-        aStyle.left - aStyle.fontSize / 2 ||
-      bStyle.top + bStyle.height + bStyle.fontSize / 2 <
-        aStyle.top - aStyle.fontSize / 2
-    ) {
+  const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
+    const aStyle = getStyle(a);
+    const bStyle = getStyle(b);
+
+    const getIsIntersected = (margin: number) =>
+      aStyle.left + aStyle.width + aStyle.size * margin >=
+        bStyle.left - bStyle.size * margin &&
+      aStyle.top + aStyle.height + aStyle.size * margin >=
+        bStyle.top - bStyle.size * margin &&
+      bStyle.left + bStyle.width + bStyle.size * margin >=
+        aStyle.left - aStyle.size * margin &&
+      bStyle.top + bStyle.height + bStyle.size * margin >=
+        aStyle.top - aStyle.size * margin;
+
+    if (!getIsIntersected(0.5)) {
       return;
     }
 
+    const padding = getIsIntersected(0.25) ? "" : " ";
     const neighbor = {
-      description: `${a.description}${b.description}`,
+      description: `${a.description}${padding}${b.description}`,
       minX: Math.min(a.minX, b.minX),
       minY: Math.min(a.minY, b.minY),
       maxX: Math.max(a.maxX, b.maxX),
       maxY: Math.max(a.maxY, b.maxY),
     };
 
-    const neighborStyle = getStyle({ annotation: neighbor, scale });
+    const neighborStyle = getStyle(neighbor);
     if (
-      Math.abs(neighborStyle.fontSize - aStyle.fontSize) >=
-        aStyle.fontSize / 2 ||
-      Math.abs(neighborStyle.fontSize - bStyle.fontSize) >= bStyle.fontSize / 2
+      Math.abs(neighborStyle.size - aStyle.size) >= aStyle.size * 0.5 ||
+      Math.abs(neighborStyle.size - bStyle.size) >= bStyle.size * 0.5
     ) {
       return;
     }
@@ -184,15 +168,18 @@ const gyanno = async () => {
           maxY: boundingPoly.vertices[2].y,
         })
       );
-      console.log(annotations);
+      console.log(annotations.length);
       console.time("merge");
 
       let mergedAnnotations;
       do {
         mergedAnnotations = undefined;
         for (const [aIndex, a] of annotations.entries()) {
-          for (const [bIndex, b] of annotations.slice(aIndex + 1).entries()) {
-            mergedAnnotations = getNeighborAnnotation({ a, b, scale });
+          for (const [bIndex, b] of annotations
+            .slice(aIndex + 1)
+            .slice(0, 1)
+            .entries()) {
+            mergedAnnotations = getNeighborAnnotation(a, b);
             if (mergedAnnotations) {
               annotations[aIndex] = mergedAnnotations;
               annotations.splice(bIndex + aIndex + 1, 1);
@@ -204,8 +191,8 @@ const gyanno = async () => {
           }
         }
       } while (mergedAnnotations);
-      console.log(annotations);
       console.timeEnd("merge");
+      console.log(annotations.length);
       return { annotations, scale };
     })();
   cache.set(url, annotationsPromise);
@@ -219,21 +206,34 @@ const gyanno = async () => {
   ).style.display = "none";
 
   const divElements = annotations.map((annotation) => {
-    const style = getStyle({ annotation, scale });
-    const textScale = style.fontSize / 10;
-    const textWidth = (eaw.length(annotation.description) / 2) * style.fontSize;
+    const style = getStyle(annotation);
+
+    const boxWidth = (style.width / scale.width) * imageViewerRect.width;
+    const boxHeight = (style.height / scale.height) * imageViewerRect.height;
+    const boxLength = Math.max(boxWidth, boxHeight);
+
+    const fontSize = Math.min(boxWidth, boxHeight);
+    const textScale = fontSize / 10;
+    const textLength = eaw.length(annotation.description) * 0.5 * fontSize;
 
     const divElement = document.createElement("div");
 
     divElement.textContent = annotation.description;
     divElement.classList.add("gyanno");
 
-    divElement.style.left = `${style.left + imageViewerRect.left + scrollX}px`;
-    divElement.style.top = `${style.top + imageViewerRect.top + scrollY}px`;
+    divElement.style.left = `${
+      (style.left / scale.width) * imageViewerRect.width +
+      imageViewerRect.left +
+      scrollX
+    }px`;
+    divElement.style.top = `${
+      (style.top / scale.height) * imageViewerRect.height +
+      imageViewerRect.top +
+      scrollY
+    }px`;
+
     divElement.style.letterSpacing = `${
-      (Math.max(style.width, style.height) - textWidth) /
-      annotation.description.length /
-      textScale
+      (boxLength - textLength) / annotation.description.length / textScale
     }px`;
     divElement.style.transform = `scale(${textScale})`;
     divElement.style.writingMode =
