@@ -88,9 +88,9 @@ const gyanno = async () => {
         // @ts-expect-error
         ({ description, boundingPoly }) => {
           // @ts-expect-error
-          const xs = boundingPoly.vertices.map(({ x }) => x);
+          const xs = boundingPoly.vertices.map(({ x }) => x ?? 0);
           // @ts-expect-error
-          const ys = boundingPoly.vertices.map(({ y }) => y);
+          const ys = boundingPoly.vertices.map(({ y }) => y ?? 0);
 
           return {
             segments: [...new Intl.Segmenter().segment(description)].map(
