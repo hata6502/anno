@@ -194,16 +194,14 @@ const gyanno = async () => {
     overlayElement.classList.add("gyanno", "overlay");
 
     overlayElement.style.left = `${
-      (style.left / scale.width) * imageViewerRect.width -
-      imageBoxRect.left +
-      imageViewerRect.left +
-      scrollX
+      (style.left / scale.width) * imageViewerRect.width +
+      imageViewerRect.left -
+      imageBoxRect.left
     }px`;
     overlayElement.style.top = `${
-      (style.top / scale.height) * imageViewerRect.height -
-      imageBoxRect.top +
-      imageViewerRect.top +
-      scrollY
+      (style.top / scale.height) * imageViewerRect.height +
+      imageViewerRect.top -
+      imageBoxRect.top
     }px`;
 
     overlayElement.style.letterSpacing = `${
