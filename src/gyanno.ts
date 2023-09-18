@@ -2,7 +2,7 @@
 import eaw from "eastasianwidth";
 
 interface Annotation {
-  description: string;
+  segments: string[];
   paddingCount: number;
   breakCount: number;
   minX: number;
@@ -35,22 +35,25 @@ styleElement.textContent = `
   }
 
   .gyanno {
-    &.text {
+    &.overlay {
       position: absolute;
-      color: red;
       font-family: monospace;
       font-size: 10px;
       transform-origin: top left;
       white-space: pre;
-
-      &::selection {
-        background: rgb(0, 0, 255, 0.125);
-      }
     }
 
     &.break {
       position: absolute;
       visibility: hidden;
+    }
+
+    &.segment {
+      color: transparent;
+
+      &::selection {
+        background: rgb(0, 0, 255, 0.25);
+      }
     }
   }
 `;
@@ -90,7 +93,9 @@ const gyanno = async () => {
           const ys = boundingPoly.vertices.map(({ y }) => y);
 
           return {
-            description,
+            segments: [...new Intl.Segmenter().segment(description)].map(
+              (segment) => segment.segment
+            ),
             paddingCount: 0,
             breakCount: 0,
             minX: Math.min(...xs),
@@ -100,6 +105,8 @@ const gyanno = async () => {
           };
         }
       );
+      console.log(annotations.length);
+      console.time("optimize");
 
       let mergedAnnotation;
       do {
@@ -144,6 +151,8 @@ const gyanno = async () => {
         }
       }
 
+      console.timeEnd("optimize");
+      console.log(annotations.length);
       return { annotations, scale };
     })();
   cache.set(url, annotationsPromise);
@@ -155,13 +164,20 @@ const gyanno = async () => {
   }
   const imageBoxRect = imageBoxElement.getBoundingClientRect();
 
-  const imageViewerRect = document
-    .querySelector(".image-box-component .image-viewer")
-    ?.getBoundingClientRect();
-  if (!imageViewerRect || !imageViewerRect.width || !imageViewerRect.height) {
+  const imageViewerElement = document.querySelector(
+    ".image-box-component .image-viewer"
+  );
+  if (!imageViewerElement) {
     return;
   }
-  const overlayElements = annotations.flatMap((annotation) => {
+  const imageViewerRect = imageViewerElement.getBoundingClientRect();
+  if (!imageViewerRect.width || !imageViewerRect.height) {
+    return;
+  }
+
+  const overlayElements: Element[] = [];
+  const segmentElements: HTMLElement[] = [];
+  for (const annotation of annotations) {
     const style = getStyle(annotation);
 
     const boxWidth = (style.width / scale.width) * imageViewerRect.width;
@@ -171,57 +187,93 @@ const gyanno = async () => {
     const fontSize = Math.min(boxWidth, boxHeight);
 
     const textScale = fontSize / 10;
-    const textLength = eaw.length(annotation.description) * 0.5 * fontSize;
+    const textLength =
+      eaw.length(annotation.segments.join("")) * 0.5 * fontSize;
 
-    const textElement = document.createElement("span");
+    const overlayElement = document.createElement("span");
+    overlayElement.classList.add("gyanno", "overlay");
 
-    textElement.textContent = `${annotation.description}${" ".repeat(
-      annotation.paddingCount
-    )}`;
-    textElement.classList.add("gyanno", "text");
-
-    textElement.style.left = `${
+    overlayElement.style.left = `${
       (style.left / scale.width) * imageViewerRect.width -
       imageBoxRect.left +
       imageViewerRect.left +
       scrollX
     }px`;
-    textElement.style.top = `${
+    overlayElement.style.top = `${
       (style.top / scale.height) * imageViewerRect.height -
       imageBoxRect.top +
       imageViewerRect.top +
       scrollY
     }px`;
 
-    textElement.style.letterSpacing = `${
-      (boxLength - textLength) / annotation.description.length / textScale
+    overlayElement.style.letterSpacing = `${
+      (boxLength - textLength) / annotation.segments.length / textScale
     }px`;
-    textElement.style.transform = `scale(${textScale})`;
-    textElement.style.writingMode = style.isHorizontal
+    overlayElement.style.transform = `scale(${textScale})`;
+    overlayElement.style.writingMode = style.isHorizontal
       ? "horizontal-tb"
       : "vertical-rl";
+
+    for (const segment of [
+      ...annotation.segments,
+      ...Array(annotation.paddingCount).map(() => " "),
+    ]) {
+      const segmentElement = document.createElement("span");
+      segmentElement.textContent = segment;
+      segmentElement.classList.add("gyanno", "segment");
+
+      segmentElement.addEventListener("pointerdown", () => {
+        if (segmentElement.style.userSelect !== "none") {
+          return;
+        }
+
+        selection.removeAllRanges();
+      });
+
+      overlayElement.append(segmentElement);
+      segmentElements.push(segmentElement);
+    }
 
     const breakElement = document.createElement("span");
     breakElement.innerHTML = "<br />".repeat(annotation.breakCount);
     breakElement.classList.add("gyanno", "break");
+    overlayElement.append(breakElement);
 
-    return [textElement, breakElement];
-  });
-
+    overlayElements.push(overlayElement);
+  }
   for (const overlayElement of overlayElements) {
     imageBoxElement.append(overlayElement);
   }
+
+  const handleSelectionchange = () => {
+    const isSegmentSelected = segmentElements.some((segmentElement) =>
+      selection.containsNode(segmentElement, true)
+    );
+    document.body.style.userSelect = isSegmentSelected ? "none" : "";
+
+    let isPrevSelected = !isSegmentSelected;
+    for (const segmentElement of segmentElements) {
+      isPrevSelected ||= selection.containsNode(segmentElement, true);
+      segmentElement.style.userSelect = isPrevSelected ? "text" : "none";
+    }
+  };
+
+  document.addEventListener("selectionchange", handleSelectionchange);
+  handleSelectionchange();
+
   cleanUp = () => {
     for (const overlayElement of overlayElements) {
       overlayElement.remove();
     }
+
+    document.removeEventListener("selectionchange", handleSelectionchange);
   };
 };
 
-const getStyle = ({ description, minX, minY, maxX, maxY }: Annotation) => {
+const getStyle = ({ segments, minX, minY, maxX, maxY }: Annotation) => {
   let width = maxX - minX;
   let height = maxY - minY;
-  if (description.length === 1) {
+  if (segments.length === 1) {
     width = height = Math.max(width, height);
   }
 
@@ -253,9 +305,12 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
     return;
   }
 
-  const padding = getIsIntersected(0.5) ? "" : " ";
   const neighbor = {
-    description: `${a.description}${padding}${b.description}`,
+    segments: [
+      ...a.segments,
+      ...(getIsIntersected(0.5) ? [] : [" "]),
+      ...b.segments,
+    ],
     paddingCount: 0,
     breakCount: 0,
     minX: Math.min(a.minX, b.minX),
