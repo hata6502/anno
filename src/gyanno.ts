@@ -37,15 +37,15 @@ styleElement.textContent = `
   .gyanno {
     &.flickering-preventer {
       position: absolute;
-      inset: 0;
+      width: 16px;
+      height: 16px;
+      background: rgb(255, 0, 0, 0.25);
     }
 
     &.overlay {
       position: absolute;
       color: transparent;
       font-family: monospace;
-      font-size: 10px;
-      transform-origin: top left;
       white-space: pre;
       z-index: 1;
 
@@ -189,9 +189,7 @@ const gyanno = async () => {
     const boxHeight = (style.height / scale.height) * imageViewerRect.height;
 
     const boxLength = Math.max(boxWidth, boxHeight);
-    const fontSize = Math.min(boxWidth, boxHeight);
-
-    const textScale = fontSize / 10;
+    const fontSize = Math.max(Math.min(boxWidth, boxHeight), 10);
     const textLength =
       eaw.length(annotation.segments.join("")) * 0.5 * fontSize;
 
@@ -212,19 +210,19 @@ const gyanno = async () => {
       imageBoxRect.top
     }px`;
 
+    overlayElement.style.fontSize = `${fontSize}px`;
     overlayElement.style.letterSpacing = `${
-      (boxLength - textLength) / annotation.segments.length / textScale
+      (boxLength - textLength) / annotation.segments.length
     }px`;
-    overlayElement.style.transform = `scale(${textScale})`;
     overlayElement.style.writingMode = style.isHorizontal
       ? "horizontal-tb"
       : "vertical-rl";
 
-    overlayElement.addEventListener("pointerdown", () => {
+    overlayElement.addEventListener("mousedown", () => {
       isSelectingByPointer = true;
     });
 
-    overlayElement.addEventListener("pointerleave", (event) => {
+    overlayElement.addEventListener("mouseleave", (event) => {
       if (!isSelectingByPointer) {
         return;
       }
@@ -252,13 +250,24 @@ const gyanno = async () => {
     imageBoxElement.append(overlayElement);
   }
 
-  const handleBodyPointerUp = () => {
+  const handleBodyPointermove = (event) => {
+    flickeringPreventerElement.style.left = `${
+      event.clientX - imageBoxRect.left - 8
+    }px`;
+    flickeringPreventerElement.style.top = `${
+      event.clientY - imageBoxRect.top - 8
+    }px`;
+  };
+  document.body.addEventListener("mousemove", handleBodyPointermove);
+
+  const handleBodyPointerup = () => {
     isSelectingByPointer = false;
   };
-  document.body.addEventListener("pointerup", handleBodyPointerUp);
+  document.body.addEventListener("mouseup", handleBodyPointerup);
 
   cleanUp = () => {
-    document.body.removeEventListener("pointerup", handleBodyPointerUp);
+    document.body.removeEventListener("mouseup", handleBodyPointerup);
+    document.body.removeEventListener("mousemove", handleBodyPointermove);
     for (const overlayElement of overlayElements) {
       overlayElement.remove();
     }
