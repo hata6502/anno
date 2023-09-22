@@ -175,6 +175,13 @@ const gyanno = async () => {
     return;
   }
 
+  const a = document.createElement("div");
+  a.style.position = "absolute";
+  a.style.inset = "0";
+  document.body.addEventListener("pointerup", () => {
+    a.remove();
+  });
+
   const overlayElements: Element[] = [];
   const segmentElements: HTMLElement[] = [];
   for (const annotation of annotations) {
@@ -212,6 +219,12 @@ const gyanno = async () => {
       ? "horizontal-tb"
       : "vertical-rl";
 
+      overlayElement.style.zIndex = "1";
+
+      overlayElement.addEventListener("pointerleave", () => {
+        imageBoxElement.insertBefore(a, overlayElement.nextSibling);
+      });
+
     for (const segment of [
       ...annotation.segments,
       ...Array(annotation.paddingCount).map(() => " "),
@@ -220,13 +233,13 @@ const gyanno = async () => {
       segmentElement.textContent = segment;
       segmentElement.classList.add("gyanno", "segment");
 
-      segmentElement.addEventListener("pointerdown", () => {
+      /*segmentElement.addEventListener("pointerdown", () => {
         if (segmentElement.style.userSelect !== "none") {
           return;
         }
 
         selection.removeAllRanges();
-      });
+      });*/
 
       overlayElement.append(segmentElement);
       segmentElements.push(segmentElement);
@@ -244,7 +257,7 @@ const gyanno = async () => {
   }
 
   const handleSelectionchange = () => {
-    const isSegmentSelected = segmentElements.some((segmentElement) =>
+    /*const isSegmentSelected = segmentElements.some((segmentElement) =>
       selection.containsNode(segmentElement, true)
     );
     document.body.style.userSelect = isSegmentSelected ? "none" : "";
@@ -252,14 +265,15 @@ const gyanno = async () => {
     let isPrevSelected = !isSegmentSelected;
     for (const segmentElement of segmentElements) {
       isPrevSelected ||= selection.containsNode(segmentElement, true);
-      segmentElement.style.userSelect = isPrevSelected ? "text" : "none";
-    }
+      segmentElement.style.userSelect = "text"; //isPrevSelected ? "text" : "none";
+    }*/
   };
 
   document.addEventListener("selectionchange", handleSelectionchange);
   handleSelectionchange();
 
   cleanUp = () => {
+    a.remove();
     for (const overlayElement of overlayElements) {
       overlayElement.remove();
     }
