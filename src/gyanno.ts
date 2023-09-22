@@ -35,25 +35,28 @@ styleElement.textContent = `
   }
 
   .gyanno {
+    &.flickering-preventer {
+      position: absolute;
+      inset: 0;
+    }
+
     &.overlay {
       position: absolute;
+      color: transparent;
       font-family: monospace;
       font-size: 10px;
       transform-origin: top left;
       white-space: pre;
+      z-index: 1;
+
+      &::selection {
+        background: rgb(0, 0, 255, 0.25);
+      }
     }
 
     &.break {
       position: absolute;
       visibility: hidden;
-    }
-
-    &.segment {
-      color: transparent;
-
-      &::selection {
-        background: rgb(0, 0, 255, 0.25);
-      }
     }
   }
 `;
@@ -175,16 +178,11 @@ const gyanno = async () => {
     return;
   }
 
-  const a = document.createElement("div");
-  a.style.position = "absolute";
-  a.style.inset = "0";
-  document.body.addEventListener("pointerup", () => {
-    a.remove();
-  });
+  let isSelectingByPointer = false;
+  const flickeringPreventerElement = document.createElement("div");
+  flickeringPreventerElement.classList.add("gyanno", "flickering-preventer");
 
-  const overlayElements: Element[] = [];
-  const segmentElements: HTMLElement[] = [];
-  for (const annotation of annotations) {
+  const overlayElements = annotations.map((annotation) => {
     const style = getStyle(annotation);
 
     const boxWidth = (style.width / scale.width) * imageViewerRect.width;
@@ -198,6 +196,9 @@ const gyanno = async () => {
       eaw.length(annotation.segments.join("")) * 0.5 * fontSize;
 
     const overlayElement = document.createElement("span");
+    overlayElement.textContent = `${annotation.segments.join("")}${" ".repeat(
+      annotation.paddingCount
+    )}`;
     overlayElement.classList.add("gyanno", "overlay");
 
     overlayElement.style.left = `${
@@ -219,66 +220,49 @@ const gyanno = async () => {
       ? "horizontal-tb"
       : "vertical-rl";
 
-      overlayElement.style.zIndex = "1";
+    overlayElement.addEventListener("pointerdown", () => {
+      isSelectingByPointer = true;
+    });
 
-      overlayElement.addEventListener("pointerleave", () => {
-        imageBoxElement.insertBefore(a, overlayElement.nextSibling);
-      });
+    overlayElement.addEventListener("pointerleave", (event) => {
+      if (!isSelectingByPointer) {
+        return;
+      }
 
-    for (const segment of [
-      ...annotation.segments,
-      ...Array(annotation.paddingCount).map(() => " "),
-    ]) {
-      const segmentElement = document.createElement("span");
-      segmentElement.textContent = segment;
-      segmentElement.classList.add("gyanno", "segment");
+      const overlayRect = overlayElement.getBoundingClientRect();
 
-      /*segmentElement.addEventListener("pointerdown", () => {
-        if (segmentElement.style.userSelect !== "none") {
-          return;
-        }
+      const isPrev = style.isHorizontal
+        ? event.clientX < overlayRect.left + overlayRect.width / 2
+        : event.clientY < overlayRect.top + overlayRect.height / 2;
 
-        selection.removeAllRanges();
-      });*/
-
-      overlayElement.append(segmentElement);
-      segmentElements.push(segmentElement);
-    }
+      imageBoxElement.insertBefore(
+        flickeringPreventerElement,
+        isPrev ? overlayElement : overlayElement.nextSibling
+      );
+    });
 
     const breakElement = document.createElement("span");
     breakElement.innerHTML = "<br />".repeat(annotation.breakCount);
     breakElement.classList.add("gyanno", "break");
     overlayElement.append(breakElement);
 
-    overlayElements.push(overlayElement);
-  }
+    return overlayElement;
+  });
   for (const overlayElement of overlayElements) {
     imageBoxElement.append(overlayElement);
   }
 
-  const handleSelectionchange = () => {
-    /*const isSegmentSelected = segmentElements.some((segmentElement) =>
-      selection.containsNode(segmentElement, true)
-    );
-    document.body.style.userSelect = isSegmentSelected ? "none" : "";
-
-    let isPrevSelected = !isSegmentSelected;
-    for (const segmentElement of segmentElements) {
-      isPrevSelected ||= selection.containsNode(segmentElement, true);
-      segmentElement.style.userSelect = "text"; //isPrevSelected ? "text" : "none";
-    }*/
+  const handleBodyPointerUp = () => {
+    isSelectingByPointer = false;
   };
-
-  document.addEventListener("selectionchange", handleSelectionchange);
-  handleSelectionchange();
+  document.body.addEventListener("pointerup", handleBodyPointerUp);
 
   cleanUp = () => {
-    a.remove();
+    document.body.removeEventListener("pointerup", handleBodyPointerUp);
     for (const overlayElement of overlayElements) {
       overlayElement.remove();
     }
-
-    document.removeEventListener("selectionchange", handleSelectionchange);
+    flickeringPreventerElement.remove();
   };
 };
 
