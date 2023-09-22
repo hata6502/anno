@@ -182,7 +182,7 @@ const gyanno = async () => {
   const flickeringPreventerElement = document.createElement("div");
   flickeringPreventerElement.classList.add("gyanno", "flickering-preventer");
 
-  const overlayElements = annotations.map((annotation) => {
+  const overlayElements = [...annotations].reverse().map((annotation) => {
     const style = getStyle(annotation);
 
     const boxWidth = (style.width / scale.width) * imageViewerRect.width;
@@ -197,6 +197,7 @@ const gyanno = async () => {
     overlayElement.textContent = `${annotation.segments.join("")}${" ".repeat(
       annotation.paddingCount
     )}`;
+    overlayElement.dir = "ltr";
     overlayElement.classList.add("gyanno", "overlay");
 
     overlayElement.style.left = `${
@@ -258,7 +259,7 @@ const gyanno = async () => {
       event.clientY - imageBoxRect.top - 8
     }px`;
   };
-  document.body.addEventListener("mousemove", handleBodyPointermove);
+  //document.body.addEventListener("mousemove", handleBodyPointermove);
 
   const handleBodyPointerup = () => {
     isSelectingByPointer = false;
