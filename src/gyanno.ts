@@ -15,6 +15,10 @@ interface Scale {
 
 const styleElement = document.createElement("style");
 styleElement.textContent = `
+  .image-box-component .image-viewer {
+    user-select: none;
+  }
+
   .anno {
     &.icon {
       position: absolute;
@@ -172,8 +176,6 @@ const gyanno = async () => {
   overlayerElement.classList.add("gyanno", "overlayer");
   overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
   overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
-  overlayerElement.style.width = `${imageViewerRect.width}px`;
-  overlayerElement.style.height = `${imageViewerRect.height}px`;
   imageBoxElement.append(overlayerElement);
 
   for (const annotation of annotations) {
