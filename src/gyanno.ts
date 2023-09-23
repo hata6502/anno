@@ -102,21 +102,20 @@ const gyanno = async () => {
       console.log(annotations.length);
       console.time("optimize");
 
-      let mergedAnnotation;
-      do {
-        mergedAnnotation = undefined;
-        for (const [aIndex, a] of annotations.slice(0, -1).entries()) {
-          const bIndex = aIndex + 1;
-          const b = annotations[bIndex];
+      for (let aIndex = 0; aIndex < annotations.length - 1; aIndex++) {
+        const bIndex = aIndex + 1;
+        const a = annotations[aIndex];
+        const b = annotations[bIndex];
 
-          mergedAnnotation = getNeighborAnnotation(a, b);
-          if (mergedAnnotation) {
-            annotations[aIndex] = mergedAnnotation;
-            annotations.splice(bIndex, 1);
-            break;
+        const mergedAnnotation = getNeighborAnnotation(a, b);
+        if (mergedAnnotation) {
+          annotations[aIndex] = mergedAnnotation;
+          annotations.splice(bIndex, 1);
+          if (aIndex >= 1) {
+            aIndex--;
           }
         }
-      } while (mergedAnnotation);
+      }
 
       for (const [aIndex, a] of annotations.slice(0, -1).entries()) {
         const b = annotations[aIndex + 1];
