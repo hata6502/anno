@@ -17,7 +17,6 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.0.174",
-    "eastasianwidth": "^0.2.0",
     "p-queue": "^7.3.4",
     "text-quote-selector": "^1.0.0",
     "ts-loader": "^9.2.6",

@@ -1,6 +1,3 @@
-// @ts-expect-error
-import eaw from "eastasianwidth";
-
 interface Annotation {
   segments: string[];
   paddingCount: number;
@@ -35,19 +32,14 @@ styleElement.textContent = `
   }
 
   .gyanno {
-    &.flickering-preventer {
+    &.overlayer {
       position: absolute;
-      width: 16px;
-      height: 16px;
-      background: rgb(255, 0, 0, 0.25);
     }
 
-    &.overlay {
+    &.text {
       position: absolute;
       color: transparent;
-      font-family: monospace;
       white-space: pre;
-      z-index: 1;
 
       &::selection {
         background: rgb(0, 0, 255, 0.25);
@@ -55,7 +47,6 @@ styleElement.textContent = `
     }
 
     &.break {
-      position: absolute;
       visibility: hidden;
     }
   }
@@ -178,101 +169,53 @@ const gyanno = async () => {
     return;
   }
 
-  let isSelectingByPointer = false;
-  const flickeringPreventerElement = document.createElement("div");
-  flickeringPreventerElement.classList.add("gyanno", "flickering-preventer");
+  const overlayerElement = document.createElement("div");
+  overlayerElement.classList.add("gyanno", "overlayer");
+  overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
+  overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
+  overlayerElement.style.width = `${imageViewerRect.width}px`;
+  overlayerElement.style.height = `${imageViewerRect.height}px`;
+  imageBoxElement.append(overlayerElement);
 
-  const overlayElements = [...annotations].reverse().map((annotation) => {
+  for (const annotation of annotations) {
     const style = getStyle(annotation);
+    const width = (style.width / scale.width) * imageViewerRect.width;
+    const height = (style.height / scale.height) * imageViewerRect.height;
 
-    const boxWidth = (style.width / scale.width) * imageViewerRect.width;
-    const boxHeight = (style.height / scale.height) * imageViewerRect.height;
-
-    const boxLength = Math.max(boxWidth, boxHeight);
-    const fontSize = Math.max(Math.min(boxWidth, boxHeight), 10);
-    const textLength =
-      eaw.length(annotation.segments.join("")) * 0.5 * fontSize;
-
-    const overlayElement = document.createElement("span");
-    overlayElement.textContent = `${annotation.segments.join("")}${" ".repeat(
+    const textElement = document.createElement("span");
+    textElement.textContent = `${annotation.segments.join("")}${" ".repeat(
       annotation.paddingCount
     )}`;
-    overlayElement.dir = "ltr";
-    overlayElement.classList.add("gyanno", "overlay");
+    textElement.classList.add("gyanno", "text");
 
-    overlayElement.style.left = `${
-      (style.left / scale.width) * imageViewerRect.width +
-      imageViewerRect.left -
-      imageBoxRect.left
+    textElement.style.left = `${
+      (style.left / scale.width) * imageViewerRect.width
     }px`;
-    overlayElement.style.top = `${
-      (style.top / scale.height) * imageViewerRect.height +
-      imageViewerRect.top -
-      imageBoxRect.top
+    textElement.style.top = `${
+      (style.top / scale.height) * imageViewerRect.height
     }px`;
-
-    overlayElement.style.fontSize = `${fontSize}px`;
-    overlayElement.style.letterSpacing = `${
-      (boxLength - textLength) / annotation.segments.length
-    }px`;
-    overlayElement.style.writingMode = style.isHorizontal
+    textElement.style.fontSize = `${Math.min(width, height)}px`;
+    textElement.style.writingMode = style.isHorizontal
       ? "horizontal-tb"
       : "vertical-rl";
 
-    overlayElement.addEventListener("mousedown", () => {
-      isSelectingByPointer = true;
-    });
+    overlayerElement.append(textElement);
 
-    overlayElement.addEventListener("mouseleave", (event) => {
-      if (!isSelectingByPointer) {
-        return;
-      }
+    const textRect = textElement.getBoundingClientRect();
+    textElement.style.letterSpacing = `${
+      (Math.max(width, height) - Math.max(textRect.width, textRect.height)) /
+      annotation.segments.length
+    }px`;
 
-      const overlayRect = overlayElement.getBoundingClientRect();
-
-      const isPrev = style.isHorizontal
-        ? event.clientX < overlayRect.left + overlayRect.width / 2
-        : event.clientY < overlayRect.top + overlayRect.height / 2;
-
-      imageBoxElement.insertBefore(
-        flickeringPreventerElement,
-        isPrev ? overlayElement : overlayElement.nextSibling
-      );
-    });
-
-    const breakElement = document.createElement("span");
-    breakElement.innerHTML = "<br />".repeat(annotation.breakCount);
-    breakElement.classList.add("gyanno", "break");
-    overlayElement.append(breakElement);
-
-    return overlayElement;
-  });
-  for (const overlayElement of overlayElements) {
-    imageBoxElement.append(overlayElement);
+    for (const _break of Array(annotation.breakCount)) {
+      const breakElement = document.createElement("br");
+      breakElement.classList.add("gyanno", "break");
+      overlayerElement.append(breakElement);
+    }
   }
 
-  const handleBodyPointermove = (event) => {
-    flickeringPreventerElement.style.left = `${
-      event.clientX - imageBoxRect.left - 8
-    }px`;
-    flickeringPreventerElement.style.top = `${
-      event.clientY - imageBoxRect.top - 8
-    }px`;
-  };
-  //document.body.addEventListener("mousemove", handleBodyPointermove);
-
-  const handleBodyPointerup = () => {
-    isSelectingByPointer = false;
-  };
-  document.body.addEventListener("mouseup", handleBodyPointerup);
-
   cleanUp = () => {
-    document.body.removeEventListener("mouseup", handleBodyPointerup);
-    document.body.removeEventListener("mousemove", handleBodyPointermove);
-    for (const overlayElement of overlayElements) {
-      overlayElement.remove();
-    }
-    flickeringPreventerElement.remove();
+    overlayerElement.remove();
   };
 };
 
