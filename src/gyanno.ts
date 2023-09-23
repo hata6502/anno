@@ -102,6 +102,36 @@ const gyanno = async () => {
       console.log(annotations.length);
       console.time("optimize");
 
+      for (let aIndex = 1; aIndex < annotations.length; aIndex++) {
+        const b = annotations[aIndex - 1];
+        const bRect = [
+          [b.minX, b.minY],
+          [b.maxX, b.minY],
+          [b.maxX, b.maxY],
+          [b.minX, b.maxY],
+        ];
+
+        const distances = annotations.slice(aIndex).map((a) => {
+          const aRect = [
+            [a.minX, a.minY],
+            [a.maxX, a.minY],
+            [a.maxX, a.maxY],
+            [a.minX, a.maxY],
+          ];
+          return Math.min(
+            ...aRect.flatMap(([ax, ay]) =>
+              bRect.map(([bx, by]) => Math.hypot(ax - bx, ay - by))
+            )
+          );
+        });
+
+        const minIndex = distances.indexOf(Math.min(...distances)) + aIndex;
+        [annotations[aIndex], annotations[minIndex]] = [
+          annotations[minIndex],
+          annotations[aIndex],
+        ];
+      }
+
       for (let aIndex = 0; aIndex < annotations.length - 1; aIndex++) {
         const bIndex = aIndex + 1;
         const a = annotations[aIndex];
