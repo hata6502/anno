@@ -41,6 +41,8 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
         states: [],
       }
   );
+
+  handle();
 };
 
 const handle = () => {

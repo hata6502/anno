@@ -375,7 +375,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
             document.body.append(barmapElement);
 
-            const handle = () => {
+            const handleResize = () => {
               const elements = [...markElements, ...iframeElements];
 
               const isVisible = elements.some(
@@ -420,15 +420,13 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 4
               )}px`;
             };
-            addEventListener("scroll", handle, true);
-            const resizeObserver = new ResizeObserver(handle);
+            const resizeObserver = new ResizeObserver(handleResize);
             resizeObserver.observe(document.body);
 
             return {
               range: nextRange,
               cleanUp: () => {
                 resizeObserver.disconnect();
-                removeEventListener("scroll", handle, true);
 
                 for (const markElement of markElements) {
                   markElement.after(...markElement.childNodes);

@@ -15,44 +15,42 @@ interface Scale {
 
 const styleElement = document.createElement("style");
 styleElement.textContent = `
-  .image-box-component .image-viewer {
-    user-select: none;
-  }
+  .image-box-component {
+    .image-viewer {
+      user-select: none;
+    }
 
-  .anno {
-    &.icon {
-      position: absolute;
-      opacity: 0.5;
+    .anno {
+      &.icon {
+        opacity: 0.5;
 
-      &:active, &:focus, &:hover {
-        opacity: unset;
+        &:active, &:focus, &:hover {
+          opacity: unset;
+        }
+      }
+
+      &.marker {
+        background: rgb(255, 255, 0, 0.25);
+        color: transparent;
       }
     }
 
-    &.marker {
-      background: rgb(255, 255, 0, 0.25);
-      color: transparent;
-    }
-  }
-
-  .gyanno {
-    &.overlayer {
-      position: absolute;
-    }
-
-    &.text {
-      position: absolute;
-      color: transparent;
-      white-space: pre;
-
-      &::selection {
-        background: rgb(0, 0, 255, 0.25);
+    .gyanno {
+      &.overlayer {
+        position: absolute;
       }
-    }
 
-    &.break {
-      visibility: hidden;
-    }
+      &.text {
+        position: absolute;
+        color: transparent;
+        overflow: hidden;
+        white-space: pre;
+      }
+
+      &.break {
+        visibility: hidden;
+      }
+    }  
   }
 `;
 document.head.append(styleElement);
@@ -161,9 +159,7 @@ const gyanno = async () => {
   }
   const imageBoxRect = imageBoxElement.getBoundingClientRect();
 
-  const imageViewerElement = document.querySelector(
-    ".image-box-component .image-viewer"
-  );
+  const imageViewerElement = imageBoxElement.querySelector(".image-viewer");
   if (!imageViewerElement) {
     return;
   }
@@ -195,7 +191,10 @@ const gyanno = async () => {
     textElement.style.top = `${
       (style.top / scale.height) * imageViewerRect.height
     }px`;
-    textElement.style.fontSize = `${Math.min(width, height)}px`;
+    textElement.style.fontSize = textElement.style.lineHeight = `${Math.min(
+      width,
+      height
+    )}px`;
     textElement.style.writingMode = style.isHorizontal
       ? "horizontal-tb"
       : "vertical-rl";
