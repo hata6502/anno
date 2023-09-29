@@ -157,50 +157,82 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   switch (contentMessage.type) {
     case "mark": {
       const title = document.title || new Date().toLocaleString();
-
       const headerLines = [];
+
       if (!prevInjectionData?.collaboratedAnnopageLink) {
-        headerLines.push(`[${title} ${getURL()}]`);
-
-        const ogImageElement = window.document.querySelector(
-          'meta[property="og:image" i]'
-        );
-        const ogImageURL =
-          ogImageElement instanceof window.HTMLMetaElement &&
-          ogImageElement.content;
-        if (ogImageURL) {
-          headerLines.push(`[${ogImageURL}#.png]`);
-        }
-
-        const descriptionElement = window.document.querySelector(
-          'meta[name="description" i]'
-        );
-        const ogDescriptionElement = window.document.querySelector(
-          'meta[property="og:description" i]'
-        );
-        const description =
-          (ogDescriptionElement instanceof window.HTMLMetaElement &&
-            ogDescriptionElement.content) ||
-          (descriptionElement instanceof window.HTMLMetaElement &&
-            descriptionElement.content);
-        if (description) {
-          headerLines.push(
-            ...description.split("\n").map((line) => `> ${line}`)
+        const gyazoIDMatch = location.pathname.match(/^\/([0-9a-z]{32})$/);
+        if (
+          location.host.match(/^([0-9a-z\-]+\.)?gyazo.com$/) &&
+          gyazoIDMatch
+        ) {
+          const response = await fetch(
+            `/${encodeURIComponent(gyazoIDMatch[1])}.json`
           );
+          if (!response.ok) {
+            throw new Error("Failed to fetch gyazo.com");
+          }
+          const { desc, metadata, permalink_url } = await response.json();
+
+          headerLines.push(
+            ...[
+              `[${permalink_url} ${permalink_url}]`,
+              desc,
+              "",
+              metadata.url
+                ? metadata.title
+                  ? `[${metadata.title} ${metadata.url}]`
+                  : `[${metadata.url}]`
+                : metadata.title,
+              metadata.exif_normalized?.latitude &&
+                `[N${metadata.exif_normalized.latitude},E${metadata.exif_normalized.longitude},Z17]`,
+            ].flatMap((data) =>
+              typeof data === "string"
+                ? data.split("\n").map((line) => `> ${line}`)
+                : []
+            )
+          );
+        } else {
+          headerLines.push(`[${title} ${getURL()}]`);
+
+          const ogImageElement = window.document.querySelector(
+            'meta[property="og:image" i]'
+          );
+          const ogImageURL =
+            ogImageElement instanceof window.HTMLMetaElement &&
+            ogImageElement.content;
+          if (ogImageURL) {
+            headerLines.push(`[${ogImageURL}#.png]`);
+          }
+
+          const descriptionElement = window.document.querySelector(
+            'meta[name="description" i]'
+          );
+          const ogDescriptionElement = window.document.querySelector(
+            'meta[property="og:description" i]'
+          );
+          const description =
+            (ogDescriptionElement instanceof window.HTMLMetaElement &&
+              ogDescriptionElement.content) ||
+            (descriptionElement instanceof window.HTMLMetaElement &&
+              descriptionElement.content);
+          if (description) {
+            headerLines.push(
+              ...description.split("\n").map((line) => `> ${line}`)
+            );
+          }
+
+          const keywordsElement = window.document.querySelector(
+            'meta[name="keywords" i]'
+          );
+          const keywords =
+            keywordsElement instanceof window.HTMLMetaElement &&
+            keywordsElement.content;
+          if (keywords) {
+            headerLines.push(keywords);
+          }
         }
 
-        const keywordsElement = window.document.querySelector(
-          'meta[name="keywords" i]'
-        );
-        const keywords =
-          keywordsElement instanceof window.HTMLMetaElement &&
-          keywordsElement.content;
-        if (keywords) {
-          headerLines.push(keywords);
-        }
-
-        headerLines.push(`[${decodeURI(getAnnolink(getURL()))}]`);
-        headerLines.push("");
+        headerLines.push(`[${decodeURI(getAnnolink(getURL()))}]`, "");
       }
 
       await write({
