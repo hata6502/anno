@@ -20,7 +20,7 @@
       "js": ["dist/content.js"]
     },
     {
-      "matches": ["https://gyazo.com/*"],
+      "matches": ["https://*.gyazo.com/*"],
       "js": ["dist/gyanno.js"]
     },
     {

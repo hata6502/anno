@@ -47,6 +47,7 @@ styleElement.textContent = `
       &.text {
         position: absolute;
         color: transparent;
+        cursor: auto;
         overflow: hidden;
         white-space: pre;
 
@@ -65,28 +66,22 @@ document.head.append(styleElement);
 
 const cache = new Map<
   string,
-  Promise<{ annotations: Annotation[]; scale: Scale }>
+  Promise<{ annotations: Annotation[]; scale: Scale } | undefined>
 >();
-let cleanUp: (() => void) | undefined;
 const gyanno = async () => {
-  const selection = getSelection();
-  if (!selection || !selection.isCollapsed) {
-    return;
-  }
-
-  cleanUp?.();
-  cleanUp = undefined;
-
   const match = location.pathname.match(/^\/([0-9a-z]{32})$/);
   if (!match) {
     return;
   }
-  const url = `https://gyazo.com/${encodeURIComponent(match[1])}.json`;
-  const annotationsPromise =
+  const url = `/${encodeURIComponent(match[1])}.json`;
+  const fetching =
     cache.get(url) ??
     (async () => {
       const response = await fetch(url);
-      const { scale, metadata } = await response.json();
+      const { has_mp4, scale, metadata } = await response.json();
+      if (has_mp4) {
+        return;
+      }
 
       const annotations: Annotation[] = (metadata.ocrAnnotations ?? []).map(
         // @ts-expect-error
@@ -158,8 +153,12 @@ const gyanno = async () => {
       console.log(annotations.length);
       return { annotations, scale };
     })();
-  cache.set(url, annotationsPromise);
-  const { annotations, scale } = await annotationsPromise;
+  cache.set(url, fetching);
+  const response = await fetching;
+  if (!response) {
+    return;
+  }
+  const { annotations, scale } = response;
 
   const imageBoxElement = document.querySelector(".image-box-component");
   if (!imageBoxElement) {
@@ -207,6 +206,11 @@ const gyanno = async () => {
       ? "horizontal-tb"
       : "vertical-rl";
 
+    textElement.addEventListener("click", (event) => {
+      // Prevent zooming out.
+      event.stopPropagation();
+    });
+
     overlayerElement.append(textElement);
 
     const textRect = textElement.getBoundingClientRect();
@@ -222,7 +226,7 @@ const gyanno = async () => {
     }
   }
 
-  cleanUp = () => {
+  return () => {
     overlayerElement.remove();
   };
 };
@@ -287,15 +291,21 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
   return neighbor;
 };
 
+let cleanUp: (() => void) | undefined;
 const handle = async () => {
   mutationObserver.disconnect();
   try {
-    await gyanno();
+    const nextCleanUp = await gyanno();
+    cleanUp?.();
+    cleanUp = nextCleanUp;
   } finally {
-    mutationObserver.observe(document.body, {
-      subtree: true,
-      childList: true,
-      characterData: true,
+    // Prevent infinite loop.
+    setTimeout(() => {
+      mutationObserver.observe(document.body, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+      });
     });
   }
 };
