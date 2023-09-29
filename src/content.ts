@@ -15,10 +15,6 @@ export type ContentMessage =
       annoProjectName: string;
     }
   | {
-      type: "markWord";
-      annoProjectName: string;
-    }
-  | {
       type: "inject";
       injectionData: InjectionData;
     };
@@ -243,26 +239,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
         headerLines,
         includesPrefix: true,
         includesSuffix: true,
-      });
-      break;
-    }
-
-    case "markWord": {
-      const headerLines = [];
-      if (!prevInjectionData?.markedWordsPageLink) {
-        headerLines.push("[/hata6502/anno word marker]");
-        headerLines.push("[annos:/]");
-        headerLines.push("");
-      }
-
-      await write({
-        annopageLink: prevInjectionData?.markedWordsPageLink || {
-          projectName: contentMessage.annoProjectName,
-          title: "Marked words",
-        },
-        headerLines,
-        includesPrefix: false,
-        includesSuffix: false,
       });
       break;
     }

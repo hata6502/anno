@@ -46,19 +46,6 @@ const mark = async ({ tabId }: { tabId: number }) => {
   chrome.tabs.sendMessage(tabId, markMessage);
 };
 
-const markWord = async ({ tabId }: { tabId: number }) => {
-  const { annoProjectName } = await chrome.storage.sync.get(
-    initialStorageValues
-  );
-  if (!annoProjectName) {
-    chrome.runtime.openOptionsPage();
-    return;
-  }
-
-  const markWordMessage: ContentMessage = { type: "markWord", annoProjectName };
-  chrome.tabs.sendMessage(tabId, markWordMessage);
-};
-
 chrome.action.onClicked.addListener(async (tab) => {
   if (typeof tab.id !== "number") {
     return;
@@ -71,11 +58,6 @@ chrome.contextMenus.create({
   title: "Mark",
   contexts: ["page", "selection"],
 });
-chrome.contextMenus.create({
-  id: "markWord",
-  title: "Mark as a word",
-  contexts: ["page", "selection"],
-});
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (typeof tab?.id !== "number") {
     return;
@@ -84,11 +66,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   switch (info.menuItemId) {
     case "mark": {
       await mark({ tabId: tab.id });
-      break;
-    }
-
-    case "markWord": {
-      await markWord({ tabId: tab.id });
       break;
     }
   }
