@@ -32,6 +32,10 @@ styleElement.textContent = `
       &.marker {
         background: rgb(255, 255, 0, 0.25);
         color: transparent;
+
+        &::selection {
+          background: rgb(0, 0, 255, 0.25);
+        }
       }
     }
 
@@ -45,6 +49,10 @@ styleElement.textContent = `
         color: transparent;
         overflow: hidden;
         white-space: pre;
+
+        &::selection {
+          background: rgb(0, 0, 255, 0.25);
+        }
       }
 
       &.break {
