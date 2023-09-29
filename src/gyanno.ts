@@ -104,8 +104,6 @@ const gyanno = async () => {
           };
         }
       );
-      console.log(annotations.length);
-      console.time("optimize");
 
       for (let aIndex = 0; aIndex < annotations.length - 1; aIndex++) {
         const bIndex = aIndex + 1;
@@ -149,8 +147,6 @@ const gyanno = async () => {
         }
       }
 
-      console.timeEnd("optimize");
-      console.log(annotations.length);
       return { annotations, scale };
     })();
   cache.set(url, fetching);
