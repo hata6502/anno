@@ -52,6 +52,34 @@ export interface Link {
   title: string;
 }
 
+const styleElement = document.createElement("style");
+styleElement.textContent = `
+  .anno {
+    &.barmap {
+      all: unset;
+      position: fixed;
+      width: 16px;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      background: rgb(91, 165, 111, 0.5);
+      background-clip: padding-box;
+      cursor: pointer;
+      z-index: 2147483647;
+    }
+
+    &.icon {
+      all: revert;
+      border: none;
+      vertical-align: text-bottom;
+    }
+
+    &.marker {
+      all: revert;
+    }
+  }
+`;
+document.head.append(styleElement);
+
 const getURL = () => {
   const canonicalLinkElement = document.querySelector(
     'link[rel="canonical" i]'
@@ -129,50 +157,82 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   switch (contentMessage.type) {
     case "mark": {
       const title = document.title || new Date().toLocaleString();
-
       const headerLines = [];
+
       if (!prevInjectionData?.collaboratedAnnopageLink) {
-        headerLines.push(`[${title} ${getURL()}]`);
-
-        const ogImageElement = window.document.querySelector(
-          'meta[property="og:image" i]'
-        );
-        const ogImageURL =
-          ogImageElement instanceof window.HTMLMetaElement &&
-          ogImageElement.content;
-        if (ogImageURL) {
-          headerLines.push(`[${ogImageURL}#.png]`);
-        }
-
-        const descriptionElement = window.document.querySelector(
-          'meta[name="description" i]'
-        );
-        const ogDescriptionElement = window.document.querySelector(
-          'meta[property="og:description" i]'
-        );
-        const description =
-          (ogDescriptionElement instanceof window.HTMLMetaElement &&
-            ogDescriptionElement.content) ||
-          (descriptionElement instanceof window.HTMLMetaElement &&
-            descriptionElement.content);
-        if (description) {
-          headerLines.push(
-            ...description.split("\n").map((line) => `> ${line}`)
+        const gyazoIDMatch = location.pathname.match(/^\/([0-9a-z]{32})$/);
+        if (
+          location.host.match(/^([0-9a-z\-]+\.)?gyazo.com$/) &&
+          gyazoIDMatch
+        ) {
+          const response = await fetch(
+            `/${encodeURIComponent(gyazoIDMatch[1])}.json`
           );
+          if (!response.ok) {
+            throw new Error("Failed to fetch gyazo.com");
+          }
+          const { desc, metadata, permalink_url } = await response.json();
+
+          headerLines.push(
+            ...[
+              `[${permalink_url} ${permalink_url}]`,
+              desc,
+              "",
+              metadata.url
+                ? metadata.title
+                  ? `[${metadata.title} ${metadata.url}]`
+                  : `[${metadata.url}]`
+                : metadata.title,
+              metadata.exif_normalized?.latitude &&
+                `[N${metadata.exif_normalized.latitude},E${metadata.exif_normalized.longitude},Z17]`,
+            ].flatMap((data) =>
+              typeof data === "string"
+                ? data.split("\n").map((line) => `> ${line}`)
+                : []
+            )
+          );
+        } else {
+          headerLines.push(`[${title} ${getURL()}]`);
+
+          const ogImageElement = window.document.querySelector(
+            'meta[property="og:image" i]'
+          );
+          const ogImageURL =
+            ogImageElement instanceof window.HTMLMetaElement &&
+            ogImageElement.content;
+          if (ogImageURL) {
+            headerLines.push(`[${ogImageURL}#.png]`);
+          }
+
+          const descriptionElement = window.document.querySelector(
+            'meta[name="description" i]'
+          );
+          const ogDescriptionElement = window.document.querySelector(
+            'meta[property="og:description" i]'
+          );
+          const description =
+            (ogDescriptionElement instanceof window.HTMLMetaElement &&
+              ogDescriptionElement.content) ||
+            (descriptionElement instanceof window.HTMLMetaElement &&
+              descriptionElement.content);
+          if (description) {
+            headerLines.push(
+              ...description.split("\n").map((line) => `> ${line}`)
+            );
+          }
+
+          const keywordsElement = window.document.querySelector(
+            'meta[name="keywords" i]'
+          );
+          const keywords =
+            keywordsElement instanceof window.HTMLMetaElement &&
+            keywordsElement.content;
+          if (keywords) {
+            headerLines.push(keywords);
+          }
         }
 
-        const keywordsElement = window.document.querySelector(
-          'meta[name="keywords" i]'
-        );
-        const keywords =
-          keywordsElement instanceof window.HTMLMetaElement &&
-          keywordsElement.content;
-        if (keywords) {
-          headerLines.push(keywords);
-        }
-
-        headerLines.push(`[${decodeURI(getAnnolink(getURL()))}]`);
-        headerLines.push("");
+        headerLines.push(`[${decodeURI(getAnnolink(getURL()))}]`, "");
       }
 
       await write({
@@ -261,7 +321,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
 
               const markElement = document.createElement("mark");
-              markElement.style.all = "revert";
+              markElement.classList.add("anno", "marker");
               textNode.after(markElement);
               markElement.append(textNode);
               return [markElement];
@@ -277,12 +337,10 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                   "allow-popups-to-escape-sandbox",
                   "allow-scripts"
                 );
+                iframeElement.classList.add("anno", "icon");
 
-                iframeElement.style.all = "revert";
                 iframeElement.style.width = `${width}px`;
                 iframeElement.style.height = `${height}px`;
-                iframeElement.style.border = "none";
-                iframeElement.style.verticalAlign = "text-bottom";
 
                 return iframeElement;
               }
@@ -323,17 +381,8 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               );
             }
 
-            const barmapWidth = 16;
             const barmapElement = document.createElement("button");
-            barmapElement.style.all = "unset";
-            barmapElement.style.position = "fixed";
-            barmapElement.style.width = `${barmapWidth}px`;
-            barmapElement.style.borderTop = `8px solid transparent`;
-            barmapElement.style.borderBottom = `8px solid transparent`;
-            barmapElement.style.background = "rgba(91, 165, 111, 0.5)";
-            barmapElement.style.backgroundClip = "padding-box";
-            barmapElement.style.cursor = "pointer";
-            barmapElement.style.zIndex = "2147483647";
+            barmapElement.classList.add("anno", "barmap");
 
             barmapElement.addEventListener("click", () => {
               const { exact, prefix, suffix } = quoteText(
@@ -358,7 +407,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
             document.body.append(barmapElement);
 
-            const handleScroll = () => {
+            const handleResize = () => {
               const elements = [...markElements, ...iframeElements];
 
               const isVisible = elements.some(
@@ -393,7 +442,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               barmapElement.style.left = `${
                 scrollableAncestorDOMRect.left +
                 scrollableAncestorElement.clientWidth -
-                barmapWidth
+                16
               }px`;
               barmapElement.style.top = `${
                 scrollableAncestorDOMRect.top + clientTop - 8
@@ -403,13 +452,13 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 4
               )}px`;
             };
-            handleScroll();
-            addEventListener("scroll", handleScroll, true);
+            const resizeObserver = new ResizeObserver(handleResize);
+            resizeObserver.observe(document.body);
 
             return {
               range: nextRange,
               cleanUp: () => {
-                removeEventListener("scroll", handleScroll, true);
+                resizeObserver.disconnect();
 
                 for (const markElement of markElements) {
                   markElement.after(...markElement.childNodes);

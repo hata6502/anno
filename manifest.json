@@ -16,12 +16,16 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://scrapbox.io/*"],
-      "js": ["dist/scrapboxContent.js"]
-    },
-    {
       "matches": ["<all_urls>"],
       "js": ["dist/content.js"]
+    },
+    {
+      "matches": ["https://*.gyazo.com/*"],
+      "js": ["dist/gyanno.js"]
+    },
+    {
+      "matches": ["https://scrapbox.io/*"],
+      "js": ["dist/scrapboxContent.js"]
     }
   ],
   "externally_connectable": {
