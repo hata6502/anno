@@ -20,20 +20,8 @@ export type ContentMessage =
     };
 
 export interface InjectionData {
-  annopageRecord: Record<string, Annopage>;
-  collaboratedAnnopageLink?: Link;
-  markedWordsPageLink?: Link;
-}
-
-export interface Annopage {
-  projectName: string;
-  title: string;
-  annodataRecord: Record<string, Annodata>;
-  configs: {
-    color?: string;
-    textQuoteSelector: TextQuoteSelector;
-    annotations: { url: string; width: number; height: number }[];
-  }[];
+  annopageRecord: Record<string, Page>;
+  collaboratedAnnopage?: Page;
 }
 
 export interface Annodata {
@@ -44,9 +32,17 @@ export interface Annodata {
   iconHeight: number;
 }
 
-export interface Link {
+export type Link = Pick<Page, "projectName" | "title">;
+
+export interface Page {
   projectName: string;
   title: string;
+  annodataRecord: Record<string, Annodata>;
+  configs: {
+    textQuoteSelector: TextQuoteSelector;
+    markerText: string;
+    annotations: { url: string; width: number; height: number }[];
+  }[];
 }
 
 const styleElement = document.createElement("style");
@@ -95,11 +91,13 @@ const write = async ({
   headerLines,
   includesPrefix,
   includesSuffix,
+  markerText,
 }: {
   annopageLink: Link;
   headerLines: string[];
   includesPrefix: boolean;
   includesSuffix: boolean;
+  markerText: string;
 }) => {
   const lines = [...headerLines];
 
@@ -113,7 +111,7 @@ const write = async ({
     );
 
     lines.push(
-      `[🍀 ${getURL()}#${[
+      `[${markerText} ${getURL()}#${[
         `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
         ...(includesPrefix && textQuoteSelector.prefix
           ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
@@ -156,7 +154,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
       const title = document.title || new Date().toLocaleString();
       const headerLines = [];
 
-      if (!prevInjectionData?.collaboratedAnnopageLink) {
+      if (!prevInjectionData?.collaboratedAnnopage) {
         const gyazoIDMatch = location.pathname.match(/^\/([0-9a-z]{32})$/);
         if (
           location.host.match(/^([0-9a-z\-]+\.)?gyazo.com$/) &&
@@ -233,13 +231,16 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
       }
 
       await write({
-        annopageLink: prevInjectionData?.collaboratedAnnopageLink || {
+        annopageLink: prevInjectionData?.collaboratedAnnopage || {
           projectName: contentMessage.annoProjectName,
           title,
         },
         headerLines,
         includesPrefix: true,
         includesSuffix: true,
+        markerText:
+          prevInjectionData?.collaboratedAnnopage?.configs.at(-1)?.markerText ||
+          "🍀",
       });
       break;
     }
@@ -299,7 +300,19 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
               const markElement = document.createElement("mark");
               markElement.classList.add("anno", "marker");
-              markElement.style.backgroundColor = config.color ?? "";
+              markElement.style.backgroundColor =
+                new Map([
+                  ["🟥", "hsl(0 100% 87.5%)"],
+                  ["🟧", "hsl(40 100% 87.5%)"],
+                  ["🟨", "hsl(60 100% 87.5%)"],
+                  ["🟩", "hsl(120 100% 87.5%)"],
+                  ["🟦", "hsl(240 100% 87.5%)"],
+                  ["🟪", "hsl(300 100% 87.5%)"],
+                  ["🟫", "hsl(0 25% 75%)"],
+                  ["⬛", "hsl(0 0% 75%)"],
+                  ["⬜", "hsl(0 0% 100%)"],
+                ]).get(config.markerText) ?? "";
+
               textNode.after(markElement);
               markElement.append(textNode);
               return [markElement];

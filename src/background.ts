@@ -1,10 +1,10 @@
 import PQueue from "p-queue";
 import type {
   Annodata,
-  Annopage,
   ContentMessage,
   InjectionData,
   Link,
+  Page,
 } from "./content";
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
@@ -74,7 +74,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 const annopageEntriesCache = new Map<
   string,
   {
-    value: Promise<[string, Annopage][]>;
+    value: Promise<[string, Page][]>;
     storedAt: Date;
   }
 >();
@@ -91,14 +91,12 @@ const inject = async ({
   prevInjectionData?: InjectionData;
 }) => {
   const annopageRecord = { ...prevInjectionData?.annopageRecord };
-  let collaboratedAnnopageLink = prevInjectionData?.collaboratedAnnopageLink;
-  let markedWordsPageLink = prevInjectionData?.markedWordsPageLink;
+  let collaboratedAnnopage = prevInjectionData?.collaboratedAnnopage;
   await sendInjectionData({
     tabId,
     injectionData: {
       annopageRecord,
-      collaboratedAnnopageLink,
-      markedWordsPageLink,
+      collaboratedAnnopage,
     },
     signal,
   });
@@ -141,17 +139,14 @@ const inject = async ({
     }
 
     if (annolinkIndex === 0) {
-      collaboratedAnnopageLink = annopageEntries.at(0)?.[1];
-    } else if (annolinkIndex === annolinks.length - 1) {
-      markedWordsPageLink = annopageEntries.at(-1)?.[1];
+      collaboratedAnnopage = annopageEntries.at(0)?.[1];
     }
 
     await sendInjectionData({
       tabId,
       injectionData: {
         annopageRecord,
-        collaboratedAnnopageLink,
-        markedWordsPageLink,
+        collaboratedAnnopage,
       },
       signal,
     });
@@ -168,8 +163,7 @@ const inject = async ({
     tabId,
     injectionData: {
       annopageRecord,
-      collaboratedAnnopageLink,
-      markedWordsPageLink,
+      collaboratedAnnopage,
     },
     signal,
   });
@@ -182,7 +176,7 @@ const fetchAnnopagesByAnnolink = async ({
   annoProjectName: string;
   annolink: string;
 }) => {
-  const annopageEntries: [string, Annopage][] = [];
+  const annopageEntries: [string, Page][] = [];
 
   const annolinkPageResponse = await queuedFetch(
     `https://scrapbox.io/api/pages/${encodeURIComponent(
@@ -247,7 +241,7 @@ const fetchAnnopage = async ({
   annopageLink,
 }: {
   annopageLink: Link;
-}): Promise<[string, Annopage] | undefined> => {
+}): Promise<[string, Page] | undefined> => {
   const annopageProjectPromise =
     projectCache.get(annopageLink.projectName) ??
     (async (): Promise<Project | undefined> => {
@@ -319,17 +313,7 @@ const fetchAnnopage = async ({
           prefix: searchParams.get("p") ?? undefined,
           exact,
           suffix: searchParams.get("s") ?? undefined,
-          color: new Map([
-            ["🟥", "hsl(0 100% 87.5%)"],
-            ["🟧", "hsl(40 100% 87.5%)"],
-            ["🟨", "hsl(60 100% 87.5%)"],
-            ["🟩", "hsl(120 100% 87.5%)"],
-            ["🟦", "hsl(240 100% 87.5%)"],
-            ["🟪", "hsl(300 100% 87.5%)"],
-            ["🟫", "hsl(0 25% 75%)"],
-            ["⬛", "hsl(0 0% 75%)"],
-            ["⬜", "hsl(0 0% 100%)"],
-          ]).get(linkExpressionMatch[1]),
+          markerText: linkExpressionMatch[1],
         },
       ];
     });
@@ -415,7 +399,7 @@ const fetchAnnopage = async ({
       icons.push({ ...icon, isStrong });
     }
 
-    for (const { prefix, exact, suffix, color } of annotations) {
+    for (const { prefix, exact, suffix, markerText } of annotations) {
       const newAnnodataRecord: Record<string, Annodata> = {};
       for (const icon of icons) {
         const iconHeight = icon.isStrong ? 56 : 28;
@@ -448,8 +432,8 @@ const fetchAnnopage = async ({
       annodataRecord = { ...annodataRecord, ...newAnnodataRecord };
 
       configs.push({
-        color,
         textQuoteSelector: { prefix, exact, suffix },
+        markerText,
         annotations: Object.entries(newAnnodataRecord).map(
           ([id, annodata]) => ({
             url: `${chrome.runtime.getURL(
