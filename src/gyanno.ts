@@ -42,6 +42,7 @@ styleElement.textContent = `
     .gyanno {
       &.overlayer {
         position: absolute;
+        user-select: text;
       }
 
       &.text {
@@ -69,6 +70,11 @@ const cache = new Map<
   Promise<{ annotations: Annotation[]; scale: Scale } | undefined>
 >();
 const gyanno = async () => {
+  const selection = getSelection();
+  if (!selection) {
+    return;
+  }
+
   const match = location.pathname.match(/^\/([0-9a-z]{32})$/);
   if (!match) {
     return;
@@ -171,6 +177,12 @@ const gyanno = async () => {
     return;
   }
 
+  const handleSelectionchange = () => {
+    const containsOverlayer = selection.containsNode(overlayerElement, true);
+    document.body.style.userSelect = containsOverlayer ? "none" : "";
+  };
+  document.addEventListener("selectionchange", handleSelectionchange);
+
   const overlayerElement = document.createElement("div");
   overlayerElement.classList.add("gyanno", "overlayer");
   overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
@@ -223,6 +235,7 @@ const gyanno = async () => {
   }
 
   return () => {
+    document.removeEventListener("selectionchange", handleSelectionchange);
     overlayerElement.remove();
   };
 };
