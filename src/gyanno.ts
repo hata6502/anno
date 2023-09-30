@@ -83,13 +83,24 @@ const gyanno = async () => {
   const fetching =
     cache.get(url) ??
     (async () => {
-      const response = await fetch(url);
-      const { has_mp4, scale, metadata } = await response.json();
-      if (has_mp4) {
-        return;
+      let json;
+      while (true) {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(response.statusText);
+        }
+        json = await response.json();
+
+        if (json.has_mp4) {
+          return;
+        }
+        if (json.metadata.ocrAnnotations) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       }
 
-      const annotations: Annotation[] = (metadata.ocrAnnotations ?? []).map(
+      const annotations: Annotation[] = json.metadata.ocrAnnotations.map(
         // @ts-expect-error
         ({ description, boundingPoly }) => {
           // @ts-expect-error
@@ -153,7 +164,7 @@ const gyanno = async () => {
         }
       }
 
-      return { annotations, scale };
+      return { annotations, scale: json.scale };
     })();
   cache.set(url, fetching);
   const response = await fetching;
