@@ -56,6 +56,7 @@ styleElement.textContent = `
       border-bottom: 8px solid transparent;
       background-clip: padding-box;
       cursor: pointer;
+      opacity: 0.5;
       z-index: 2147483647;
     }
 
@@ -375,7 +376,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             const barmapElement = document.createElement("button");
             barmapElement.classList.add("anno", "barmap");
             barmapElement.style.backgroundColor = color ?? "#ffff00";
-            barmapElement.style.opacity = color ? "0.5" : "";
 
             barmapElement.addEventListener("click", () => {
               const { exact, prefix, suffix } = quoteText(

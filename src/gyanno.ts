@@ -107,7 +107,7 @@ const gyanno = async () => {
         }
         json = await response.json();
 
-        if (json.has_mp4) {
+        if (!json.metadata || json.has_mp4) {
           return;
         }
         if (json.metadata.ocrAnnotations) {
