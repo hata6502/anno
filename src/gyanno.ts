@@ -22,7 +22,7 @@ styleElement.textContent = `
 
     .anno {
       &.icon {
-        opacity: 0.5;
+        opacity: 0.75;
 
         &:active, &:focus, &:hover {
           opacity: unset;
@@ -30,11 +30,11 @@ styleElement.textContent = `
       }
 
       &.marker {
-        background: rgb(255, 255, 0, 0.25);
         color: transparent;
+        opacity: 0.25;
 
         &::selection {
-          background: rgb(0, 0, 255, 0.25);
+          background: rgb(0, 0, 255);
         }
       }
     }
@@ -52,6 +52,14 @@ styleElement.textContent = `
         overflow: hidden;
         white-space: pre;
 
+        &.horizontal {
+          writing-mode: horizontal-tb;
+        }
+
+        &.vertical {
+          writing-mode: vertical-rl;
+        }
+
         &::selection {
           background: rgb(0, 0, 255, 0.25);
         }
@@ -60,7 +68,15 @@ styleElement.textContent = `
       &.break {
         visibility: hidden;
       }
-    }  
+    }
+
+    .gyanno.text.horizontal .anno.marker {
+      vertical-align: top;
+    }
+
+    .gyanno.text.vertical .anno.marker {
+      vertical-align: bottom;
+    }
   }
 `;
 document.head.append(styleElement);
@@ -209,7 +225,11 @@ const gyanno = async () => {
     textElement.textContent = `${annotation.segments.join("")}${" ".repeat(
       annotation.paddingCount
     )}`;
-    textElement.classList.add("gyanno", "text");
+    textElement.classList.add(
+      "gyanno",
+      "text",
+      style.isHorizontal ? "horizontal" : "vertical"
+    );
 
     textElement.style.left = `${
       (style.left / scale.width) * imageViewerRect.width
@@ -217,13 +237,9 @@ const gyanno = async () => {
     textElement.style.top = `${
       (style.top / scale.height) * imageViewerRect.height
     }px`;
-    textElement.style.fontSize = textElement.style.lineHeight = `${Math.min(
-      width,
-      height
-    )}px`;
-    textElement.style.writingMode = style.isHorizontal
-      ? "horizontal-tb"
-      : "vertical-rl";
+    textElement.style.fontSize = textElement.style.lineHeight = `${
+      Math.min(width, height) * 1.25
+    }px`;
 
     textElement.addEventListener("click", (event) => {
       // Prevent zooming out.
