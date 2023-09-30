@@ -30,6 +30,7 @@ export interface Annopage {
   title: string;
   annodataRecord: Record<string, Annodata>;
   configs: {
+    color?: string;
     textQuoteSelector: TextQuoteSelector;
     annotations: { url: string; width: number; height: number }[];
   }[];
@@ -298,6 +299,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
               const markElement = document.createElement("mark");
               markElement.classList.add("anno", "marker");
+              markElement.style.backgroundColor = config.color ?? "";
               textNode.after(markElement);
               markElement.append(textNode);
               return [markElement];

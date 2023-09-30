@@ -296,32 +296,43 @@ const fetchAnnopage = async ({
   for (const section of sections) {
     const sectionText = section.map(({ text }) => text).join("\n");
 
-    const annotations = [...sectionText.matchAll(/\[[^\]]*\s(.*?)\]/g)].flatMap(
-      (linkExpressionMatch) => {
-        let searchParams;
-        try {
-          searchParams = new URLSearchParams(
-            new URL(linkExpressionMatch[1]).hash.slice(1)
-          );
-        } catch {
-          return [];
-        }
-
-        const exact = searchParams.get("e");
-        if (!exact) {
-          return [];
-        }
-
-        return [
-          {
-            body: linkExpressionMatch[0],
-            prefix: searchParams.get("p") ?? undefined,
-            exact,
-            suffix: searchParams.get("s") ?? undefined,
-          },
-        ];
+    const annotations = [
+      ...sectionText.matchAll(/\[([^\]]*)\s(.*?)\]/g),
+    ].flatMap((linkExpressionMatch) => {
+      let searchParams;
+      try {
+        searchParams = new URLSearchParams(
+          new URL(linkExpressionMatch[2]).hash.slice(1)
+        );
+      } catch {
+        return [];
       }
-    );
+
+      const exact = searchParams.get("e");
+      if (!exact) {
+        return [];
+      }
+
+      return [
+        {
+          body: linkExpressionMatch[0],
+          prefix: searchParams.get("p") ?? undefined,
+          exact,
+          suffix: searchParams.get("s") ?? undefined,
+          color: new Map([
+            ["🟥", "hsl(0 100% 87.5%)"],
+            ["🟧", "hsl(40 100% 87.5%)"],
+            ["🟨", "hsl(60 100% 87.5%)"],
+            ["🟩", "hsl(120 100% 87.5%)"],
+            ["🟦", "hsl(240 100% 87.5%)"],
+            ["🟪", "hsl(300 100% 87.5%)"],
+            ["🟫", "hsl(0 25% 75%)"],
+            ["⬛", "hsl(0 0% 75%)"],
+            ["⬜", "hsl(0 0% 100%)"],
+          ]).get(linkExpressionMatch[1]),
+        },
+      ];
+    });
 
     let description = sectionText;
     for (const { body } of annotations) {
@@ -404,7 +415,7 @@ const fetchAnnopage = async ({
       icons.push({ ...icon, isStrong });
     }
 
-    for (const { prefix, exact, suffix } of annotations) {
+    for (const { prefix, exact, suffix, color } of annotations) {
       const newAnnodataRecord: Record<string, Annodata> = {};
       for (const icon of icons) {
         const iconHeight = icon.isStrong ? 56 : 28;
@@ -437,6 +448,7 @@ const fetchAnnopage = async ({
       annodataRecord = { ...annodataRecord, ...newAnnodataRecord };
 
       configs.push({
+        color,
         textQuoteSelector: { prefix, exact, suffix },
         annotations: Object.entries(newAnnodataRecord).map(
           ([id, annodata]) => ({
