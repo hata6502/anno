@@ -54,7 +54,6 @@ styleElement.textContent = `
       width: 16px;
       border-top: 8px solid transparent;
       border-bottom: 8px solid transparent;
-      background: rgb(91, 165, 111, 0.5);
       background-clip: padding-box;
       cursor: pointer;
       z-index: 2147483647;
@@ -293,6 +292,18 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
             }
 
+            const color = new Map([
+              ["🟥", "hsl(0 100% 87.5%)"],
+              ["🟧", "hsl(40 100% 87.5%)"],
+              ["🟨", "hsl(60 100% 87.5%)"],
+              ["🟩", "hsl(120 100% 87.5%)"],
+              ["🟦", "hsl(240 100% 87.5%)"],
+              ["🟪", "hsl(300 100% 87.5%)"],
+              ["🟫", "hsl(0 25% 75%)"],
+              ["⬛", "hsl(0 0% 75%)"],
+              ["⬜", "hsl(0 0% 100%)"],
+            ]).get(config.markerText);
+
             const markElements = textNodes.flatMap((textNode) => {
               if (!textNode.textContent?.trim()) {
                 return [];
@@ -300,18 +311,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
               const markElement = document.createElement("mark");
               markElement.classList.add("anno", "marker");
-              markElement.style.backgroundColor =
-                new Map([
-                  ["🟥", "hsl(0 100% 87.5%)"],
-                  ["🟧", "hsl(40 100% 87.5%)"],
-                  ["🟨", "hsl(60 100% 87.5%)"],
-                  ["🟩", "hsl(120 100% 87.5%)"],
-                  ["🟦", "hsl(240 100% 87.5%)"],
-                  ["🟪", "hsl(300 100% 87.5%)"],
-                  ["🟫", "hsl(0 25% 75%)"],
-                  ["⬛", "hsl(0 0% 75%)"],
-                  ["⬜", "hsl(0 0% 100%)"],
-                ]).get(config.markerText) ?? "";
+              markElement.style.backgroundColor = color ?? "";
 
               textNode.after(markElement);
               markElement.append(textNode);
@@ -374,6 +374,8 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
             const barmapElement = document.createElement("button");
             barmapElement.classList.add("anno", "barmap");
+            barmapElement.style.backgroundColor = color ?? "#ffff00";
+            barmapElement.style.opacity = color ? "0.5" : "";
 
             barmapElement.addEventListener("click", () => {
               const { exact, prefix, suffix } = quoteText(
@@ -436,7 +438,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
                 16
               }px`;
               barmapElement.style.top = `${
-                scrollableAncestorDOMRect.top + clientTop - 8
+                scrollableAncestorDOMRect.top + clientTop - 16
               }px`;
               barmapElement.style.height = `${Math.max(
                 clientBottom - clientTop,
