@@ -180,6 +180,15 @@ const gyanno = async () => {
         }
       }
 
+      for (const annotation of annotations) {
+        const style = getStyle(annotation);
+
+        annotation.minX -= style.size / 4;
+        annotation.minY -= style.size / 4;
+        annotation.maxX += style.size / 4;
+        annotation.maxY += style.size / 4;
+      }
+
       return { annotations, scale: json.scale };
     })();
   cache.set(url, fetching);
@@ -237,9 +246,10 @@ const gyanno = async () => {
     textElement.style.top = `${
       (style.top / scale.height) * imageViewerRect.height
     }px`;
-    textElement.style.fontSize = textElement.style.lineHeight = `${
-      Math.min(width, height) * 1.25
-    }px`;
+    textElement.style.fontSize = textElement.style.lineHeight = `${Math.min(
+      width,
+      height
+    )}px`;
 
     textElement.addEventListener("click", (event) => {
       // Prevent zooming out.
