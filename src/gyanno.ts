@@ -223,6 +223,12 @@ const gyanno = async () => {
   overlayerElement.classList.add("gyanno", "overlayer");
   overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
   overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
+
+  overlayerElement.addEventListener("click", (event) => {
+    // Prevent zooming out.
+    event.stopPropagation();
+  });
+
   imageBoxElement.append(overlayerElement);
 
   for (const annotation of annotations) {
@@ -250,11 +256,6 @@ const gyanno = async () => {
       width,
       height
     )}px`;
-
-    textElement.addEventListener("click", (event) => {
-      // Prevent zooming out.
-      event.stopPropagation();
-    });
 
     overlayerElement.append(textElement);
 
@@ -338,23 +339,28 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
 };
 
 let cleanUp: (() => void) | undefined;
-const handle = async () => {
-  mutationObserver.disconnect();
-  try {
-    const nextCleanUp = await gyanno();
-    cleanUp?.();
-    cleanUp = nextCleanUp;
-  } finally {
-    // Prevent infinite loop.
-    setTimeout(() => {
-      mutationObserver.observe(document.body, {
-        subtree: true,
-        childList: true,
-        characterData: true,
+let handleDebounceID: number | undefined;
+const handle = () => {
+  clearTimeout(handleDebounceID);
+  handleDebounceID = window.setTimeout(async () => {
+    mutationObserver.disconnect();
+    try {
+      const nextCleanUp = await gyanno();
+      cleanUp?.();
+      cleanUp = nextCleanUp;
+    } finally {
+      // Prevent infinite loop.
+      setTimeout(() => {
+        mutationObserver.observe(document.body, {
+          subtree: true,
+          childList: true,
+          characterData: true,
+        });
       });
-    });
-  }
+    }
+  }, 100);
 };
+
 const mutationObserver = new MutationObserver(handle);
 new ResizeObserver(handle).observe(document.body);
 

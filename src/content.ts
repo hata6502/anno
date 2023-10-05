@@ -181,9 +181,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               metadata.exif_normalized?.latitude &&
                 `[N${metadata.exif_normalized.latitude},E${metadata.exif_normalized.longitude},Z17]`,
             ].flatMap((data) =>
-              typeof data === "string"
-                ? data.split("\n").map((line) => `> ${line}`)
-                : []
+              typeof data === "string" ? data.split("\n") : []
             )
           );
         } else {
@@ -211,9 +209,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             (descriptionElement instanceof window.HTMLMetaElement &&
               descriptionElement.content);
           if (description) {
-            headerLines.push(
-              ...description.split("\n").map((line) => `> ${line}`)
-            );
+            headerLines.push(...description.split("\n"));
           }
 
           const keywordsElement = window.document.querySelector(
@@ -319,24 +315,19 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               return [markElement];
             });
 
-            const iframeElements = config.annotations.map(
-              ({ url, width, height }) => {
-                const iframeElement = document.createElement("iframe");
-
-                iframeElement.src = url;
-                iframeElement.sandbox.add(
-                  "allow-popups",
-                  "allow-popups-to-escape-sandbox",
-                  "allow-scripts"
-                );
-                iframeElement.classList.add("anno", "icon");
-
-                iframeElement.style.width = `${width}px`;
-                iframeElement.style.height = `${height}px`;
-
-                return iframeElement;
-              }
-            );
+            const iframeElements = config.annotations.map((annotation) => {
+              const iframeElement = document.createElement("iframe");
+              iframeElement.src = annotation.url;
+              iframeElement.sandbox.add(
+                "allow-popups",
+                "allow-popups-to-escape-sandbox",
+                "allow-scripts"
+              );
+              iframeElement.classList.add("anno", "icon");
+              iframeElement.style.width = `${annotation.width}px`;
+              iframeElement.style.height = `${annotation.height}px`;
+              return iframeElement;
+            });
             markElements.at(-1)?.after(...iframeElements);
 
             let ancestorElement =
@@ -375,7 +366,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
             const barmapElement = document.createElement("button");
             barmapElement.classList.add("anno", "barmap");
-            barmapElement.style.backgroundColor = color ?? "#ffff00";
+            barmapElement.style.backgroundColor = color ?? "rgb(91, 165, 111)";
 
             barmapElement.addEventListener("click", () => {
               const { exact, prefix, suffix } = quoteText(
