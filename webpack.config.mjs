@@ -6,7 +6,7 @@ const config = {
     annotation: "./src/annotation.ts",
     background: "./src/background.ts",
     content: "./src/content.ts",
-    gyanno: "./src/gyanno.ts",
+    gyanno: "./src/gyanno.tsx",
     options: "./src/options.ts",
     scrapboxContent: "./src/scrapboxContent.ts",
     scrapboxUserScript: "./src/scrapboxUserScript.ts",
