@@ -1,3 +1,5 @@
+import { FunctionComponent, useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
 import {
   TextIndex,
   TextQuoteSelector,
@@ -6,9 +8,9 @@ import {
 } from "text-quote-selector";
 
 export interface TextQuoteInjectionConfig {
-  id: string;
+  //id: string;
   textQuoteSelector: TextQuoteSelector;
-  inject: (range: Range) => State;
+  inject: Inject;
 }
 
 interface Injection {
@@ -16,73 +18,84 @@ interface Injection {
   states: State[];
 }
 
+type Inject = (range: Range) => State;
+
 interface State {
   range: Range;
   cleanUp: () => void;
 }
 
-let injections: Injection[] = [];
+const root = createRoot(document.createDocumentFragment());
 export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
-  const configIDs = configs.map(({ id }) => id);
-  for (const { config, states } of injections) {
-    if (configIDs.includes(config.id)) {
-      continue;
-    }
+  root.render(<Injections configs={configs} />);
+};
 
-    for (const { cleanUp } of states) {
-      cleanUp();
-    }
-  }
+const Injections: FunctionComponent<{
+  configs: TextQuoteInjectionConfig[];
+}> = ({ configs }) => {
+  const textIndex = getTextIndex(document.body);
+  const [, setRenderCount] = useState(0);
 
-  injections = configs.map(
-    (config) =>
-      injections.find((injection) => injection.config.id === config.id) ?? {
-        config,
-        states: [],
+  useEffect(() => {
+    const handle = () => {
+      mutationObserver.disconnect();
+      try {
+        setRenderCount((renderCount) => renderCount + 1);
+      } finally {
+        mutationObserver.observe(document.body, {
+          subtree: true,
+          childList: true,
+          characterData: true,
+        });
       }
+    };
+
+    const mutationObserver = new MutationObserver(handle);
+    const resizeObserver = new ResizeObserver(handle);
+    resizeObserver.observe(document.body);
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  return configs.map((config, configIndex) => (
+    <Injection key={configIndex} config={config} textIndex={textIndex} />
+  ));
+};
+
+const Injection: FunctionComponent<{
+  config: TextQuoteInjectionConfig;
+  textIndex: TextIndex;
+}> = ({ config, textIndex }) =>
+  getNearestRanges(textIndex, config.textQuoteSelector).map(
+    (range, rangeIndex) => (
+      <TextQuoteInjectionRange
+        key={rangeIndex}
+        inject={config.inject}
+        range={range}
+      />
+    )
   );
 
-  handle();
-};
-
-const handle = () => {
-  mutationObserver.disconnect();
-  try {
-    const textIndex = getTextIndex(document.body);
-    injections = injections
-      .map((injection) => ({
-        injection,
-        ranges: getNearestRanges(textIndex, injection.config.textQuoteSelector),
-      }))
-      .map(({ injection, ranges }) => {
-        for (const state of injection.states) {
-          if (ranges.some((range) => isEqualRange(range, state.range))) {
-            continue;
-          }
-
-          state.cleanUp();
-        }
-
-        return {
-          ...injection,
-          states: ranges.map(
-            (range) =>
-              injection.states.find((state) =>
-                isEqualRange(state.range, range)
-              ) ?? injection.config.inject(range)
-          ),
-        };
-      });
-  } finally {
-    mutationObserver.observe(document.body, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-    });
+const TextQuoteInjectionRange: FunctionComponent<{
+  inject: Inject;
+  range: Range;
+}> = ({ inject, range }) => {
+  const ref = useRef<State>();
+  if (
+    !ref.current ||
+    ref.current.range.startContainer !== range.startContainer ||
+    ref.current.range.startOffset !== range.startOffset ||
+    ref.current.range.endContainer !== range.endContainer ||
+    ref.current.range.endOffset !== range.endOffset
+  ) {
+    ref.current?.cleanUp();
+    ref.current = inject(range);
   }
+
+  return null;
 };
-const mutationObserver = new MutationObserver(handle);
-new ResizeObserver(handle).observe(document.body);
 
 const getNearestRanges = (
   textIndex: TextIndex,
@@ -102,9 +115,3 @@ const getNearestRanges = (
       distance <= ranges[0].distance ? [range] : []
     );
 };
-
-const isEqualRange = (a: Range, b: Range) =>
-  a.startContainer === b.startContainer &&
-  a.startOffset === b.startOffset &&
-  a.endContainer === b.endContainer &&
-  a.endOffset === b.endOffset;
