@@ -41,173 +41,124 @@ overlayerElement.addEventListener("click", (event) => {
 const Overlayer: FunctionComponent = () => {
   const [handleResult, setHandleResult] = useState<{
     annotations: Annotation[];
-    imageViewerRect: DOMRect;
     scale: Scale;
   }>();
+  const [, setRenderCount] = useState(0);
 
   useEffect(() => {
     const handle = async () => {
-      mutationObserver.disconnect();
-      try {
-        setHandleResult(
-          await (async () => {
-            const match = location.pathname.match(/^\/([0-9a-z]{32})$/);
-            if (!match) {
-              return;
-            }
+      setHandleResult(
+        await (() => {
+          const match = location.pathname.match(/^\/([0-9a-z]{32})$/);
+          if (!match) {
+            return;
+          }
 
-            const imageBoxElement = document.querySelector(
-              ".image-box-component"
-            );
-            if (!imageBoxElement) {
-              return;
-            }
-            const imageBoxRect = imageBoxElement.getBoundingClientRect();
-
-            const imageViewerElement =
-              imageBoxElement.querySelector(".image-viewer");
-            if (!imageViewerElement) {
-              return;
-            }
-            const imageViewerRect = imageViewerElement.getBoundingClientRect();
-            if (!imageViewerRect.width || !imageViewerRect.height) {
-              return;
-            }
-
-            const url = `/${encodeURIComponent(match[1])}.json`;
-            const fetching =
-              cache.get(url) ??
-              (async () => {
-                let json;
-                while (true) {
-                  const response = await fetch(url);
-                  if (!response.ok) {
-                    throw new Error(response.statusText);
-                  }
-                  json = await response.json();
-
-                  if (!json.metadata || json.has_mp4) {
-                    return;
-                  }
-                  if (json.metadata.ocrAnnotations) {
-                    break;
-                  }
-                  await new Promise((resolve) => setTimeout(resolve, 5000));
+          const url = `/${encodeURIComponent(match[1])}.json`;
+          const fetching =
+            cache.get(url) ??
+            (async () => {
+              let json;
+              while (true) {
+                const response = await fetch(url);
+                if (!response.ok) {
+                  throw new Error(response.statusText);
                 }
+                json = await response.json();
 
-                const annotations: Annotation[] =
-                  json.metadata.ocrAnnotations.map(
+                if (!json.metadata || json.has_mp4) {
+                  return;
+                }
+                if (json.metadata.ocrAnnotations) {
+                  break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+              }
+
+              const annotations: Annotation[] =
+                json.metadata.ocrAnnotations.map(
+                  // @ts-expect-error
+                  ({ description, boundingPoly }) => {
                     // @ts-expect-error
-                    ({ description, boundingPoly }) => {
-                      // @ts-expect-error
-                      const xs = boundingPoly.vertices.map(({ x }) => x ?? 0);
-                      // @ts-expect-error
-                      const ys = boundingPoly.vertices.map(({ y }) => y ?? 0);
+                    const xs = boundingPoly.vertices.map(({ x }) => x ?? 0);
+                    // @ts-expect-error
+                    const ys = boundingPoly.vertices.map(({ y }) => y ?? 0);
 
-                      return {
-                        segments: [
-                          ...new Intl.Segmenter().segment(description),
-                        ].map((segment) => segment.segment),
-                        paddingCount: 0,
-                        breakCount: 0,
-                        minX: Math.min(...xs),
-                        minY: Math.min(...ys),
-                        maxX: Math.max(...xs),
-                        maxY: Math.max(...ys),
-                      };
-                    }
-                  );
+                    return {
+                      segments: [
+                        ...new Intl.Segmenter().segment(description),
+                      ].map((segment) => segment.segment),
+                      paddingCount: 0,
+                      breakCount: 0,
+                      minX: Math.min(...xs),
+                      minY: Math.min(...ys),
+                      maxX: Math.max(...xs),
+                      maxY: Math.max(...ys),
+                    };
+                  }
+                );
 
-                for (
-                  let aIndex = 0;
-                  aIndex < annotations.length - 1;
-                  aIndex++
-                ) {
-                  const bIndex = aIndex + 1;
-                  const a = annotations[aIndex];
-                  const b = annotations[bIndex];
+              for (let aIndex = 0; aIndex < annotations.length - 1; aIndex++) {
+                const bIndex = aIndex + 1;
+                const a = annotations[aIndex];
+                const b = annotations[bIndex];
 
-                  const mergedAnnotation = getNeighborAnnotation(a, b);
-                  if (mergedAnnotation) {
-                    annotations[aIndex] = mergedAnnotation;
-                    annotations.splice(bIndex, 1);
-                    if (aIndex >= 1) {
-                      aIndex--;
-                    }
+                const mergedAnnotation = getNeighborAnnotation(a, b);
+                if (mergedAnnotation) {
+                  annotations[aIndex] = mergedAnnotation;
+                  annotations.splice(bIndex, 1);
+                  if (aIndex >= 1) {
+                    aIndex--;
                   }
                 }
+              }
 
-                for (const [aIndex, a] of annotations.slice(0, -1).entries()) {
-                  const b = annotations[aIndex + 1];
+              for (const [aIndex, a] of annotations.slice(0, -1).entries()) {
+                const b = annotations[aIndex + 1];
 
-                  const aStyle = getStyle(a);
-                  const bStyle = getStyle(b);
+                const aStyle = getStyle(a);
+                const bStyle = getStyle(b);
 
-                  const breakCount = Math.round(
+                const breakCount = Math.round(
+                  Math.abs(
+                    (aStyle.isHorizontal
+                      ? bStyle.top - aStyle.top
+                      : aStyle.left +
+                        aStyle.width -
+                        (bStyle.left + bStyle.width)) / aStyle.size
+                  )
+                );
+                a.breakCount = breakCount;
+
+                if (!breakCount) {
+                  a.paddingCount = Math.round(
                     Math.abs(
                       (aStyle.isHorizontal
-                        ? bStyle.top - aStyle.top
-                        : aStyle.left +
-                          aStyle.width -
-                          (bStyle.left + bStyle.width)) / aStyle.size
+                        ? bStyle.left - (aStyle.left + aStyle.width)
+                        : bStyle.top - (aStyle.top + aStyle.height)) /
+                        aStyle.size
                     )
                   );
-                  a.breakCount = breakCount;
-
-                  if (!breakCount) {
-                    a.paddingCount = Math.round(
-                      Math.abs(
-                        (aStyle.isHorizontal
-                          ? bStyle.left - (aStyle.left + aStyle.width)
-                          : bStyle.top - (aStyle.top + aStyle.height)) /
-                          aStyle.size
-                      )
-                    );
-                  }
                 }
+              }
 
-                for (const annotation of annotations) {
-                  const style = getStyle(annotation);
+              for (const annotation of annotations) {
+                const style = getStyle(annotation);
 
-                  annotation.minX -= style.size / 4;
-                  annotation.minY -= style.size / 4;
-                  annotation.maxX += style.size / 4;
-                  annotation.maxY += style.size / 4;
-                }
+                annotation.minX -= style.size / 4;
+                annotation.minY -= style.size / 4;
+                annotation.maxX += style.size / 4;
+                annotation.maxY += style.size / 4;
+              }
 
-                return { annotations, scale: json.scale };
-              })();
-            cache.set(url, fetching);
-            const response = await fetching;
-            if (!response) {
-              return;
-            }
-            const { annotations, scale } = response;
+              return { annotations, scale: json.scale };
+            })();
+          cache.set(url, fetching);
+          return fetching;
+        })()
+      );
 
-            overlayerElement.style.left = `${
-              imageViewerRect.left - imageBoxRect.left
-            }px`;
-            overlayerElement.style.top = `${
-              imageViewerRect.top - imageBoxRect.top
-            }px`;
-            if (overlayerElement.parentNode !== imageBoxElement) {
-              imageBoxElement.append(overlayerElement);
-            }
-
-            return {
-              annotations,
-              imageViewerRect,
-              scale,
-            };
-          })()
-        );
-      } finally {
-        mutationObserver.observe(document.body, {
-          subtree: true,
-          childList: true,
-          characterData: true,
-        });
-      }
+      setRenderCount((renderCount) => renderCount + 1);
     };
 
     const mutationObserver = new MutationObserver(async (mutations) => {
@@ -223,19 +174,48 @@ const Overlayer: FunctionComponent = () => {
 
       await handle();
     });
+    mutationObserver.observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+
     const resizeObserver = new ResizeObserver(handle);
     resizeObserver.observe(document.body);
+
     return () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
     };
   }, []);
 
-  return handleResult?.annotations.map((annotation, annotationIndex) => (
+  if (!handleResult) {
+    return;
+  }
+
+  const imageBoxElement = document.querySelector(".image-box-component");
+  if (!imageBoxElement) {
+    return;
+  }
+  const imageBoxRect = imageBoxElement.getBoundingClientRect();
+
+  const imageViewerElement = imageBoxElement.querySelector(".image-viewer");
+  if (!imageViewerElement) {
+    return;
+  }
+  const imageViewerRect = imageViewerElement.getBoundingClientRect();
+
+  overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
+  overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
+  if (overlayerElement.parentNode !== imageBoxElement) {
+    imageBoxElement.append(overlayerElement);
+  }
+
+  return handleResult.annotations.map((annotation, annotationIndex) => (
     <GyannoText
       key={annotationIndex}
       annotation={annotation}
-      imageViewerRect={handleResult.imageViewerRect}
+      imageViewerRect={imageViewerRect}
       scale={handleResult.scale}
     />
   ));

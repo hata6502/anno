@@ -82,7 +82,6 @@ const handle = () => {
   }
 };
 const mutationObserver = new MutationObserver(handle);
-new ResizeObserver(handle).observe(document.body);
 
 const getNearestRanges = (
   textIndex: TextIndex,
