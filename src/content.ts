@@ -143,8 +143,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
           headerLines.push(
             ...[
               `[${permalink_url} ${permalink_url}]`,
-              desc,
-              "",
+              desc || undefined,
               metadata.url
                 ? metadata.title
                   ? `[${metadata.title} ${metadata.url}]`

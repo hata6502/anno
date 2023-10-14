@@ -16,11 +16,11 @@ export const encodeForScrapboxReadableLink = (uriComponent: string) => {
 };
 
 export const getAnnolink = (url: string) => {
-  const annoURL = new URL(url);
-  const annoProtocol = annoProtocolMap.get(annoURL.protocol);
-  if (!annoProtocol) {
-    throw new Error(`Unknown protocol: ${annoURL.protocol}`);
+  let replacedURL = url;
+  for (const [protocol, annoProtocol] of annoProtocolMap) {
+    if (replacedURL.startsWith(protocol)) {
+      replacedURL = replacedURL.replace(protocol, annoProtocol);
+    }
   }
-  annoURL.protocol = annoProtocol;
-  return String(annoURL);
+  return replacedURL;
 };
