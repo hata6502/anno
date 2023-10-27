@@ -6,6 +6,8 @@ export const annoProtocolMap = new Map([
 export const encodeForScrapboxReadableLink = (uriComponent: string) => {
   let encoded = encodeURIComponent(uriComponent);
 
+  encoded = encoded.replaceAll("%20", "+");
+
   for (const match of uriComponent.matchAll(
     /[\p{scx=Hiragana}\p{scx=Katakana}\p{scx=Han}]/gu
   )) {
