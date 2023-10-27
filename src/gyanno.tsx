@@ -370,14 +370,14 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
     bStyle.top + bStyle.height + bStyle.size * margin >=
       aStyle.top - aStyle.size * margin;
 
-  if (!getIsIntersected(1)) {
+  if (!getIsIntersected(0.5)) {
     return;
   }
 
   const neighbor = {
     segments: [
       ...a.segments,
-      ...(getIsIntersected(0.5) ? [] : [" "]),
+      ...(getIsIntersected(0.25) ? [] : [" "]),
       ...b.segments,
     ],
     paddingCount: 0,
