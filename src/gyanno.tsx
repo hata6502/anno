@@ -16,6 +16,62 @@ interface Scale {
   height: number;
 }
 
+const styleElement = document.createElement("style");
+styleElement.textContent = `
+  .image-box-component {
+    .anno {
+      &.icon {
+        position: absolute;
+        opacity: 0.5;
+
+        &:active, &:focus, &:hover {
+          opacity: unset;
+        }
+      }
+
+      &.marker {
+        color: transparent;
+        opacity: 0.25;
+
+        &::selection {
+          background: rgb(0, 0, 128);
+        }
+      }
+    }
+
+    .gyanno {
+      &.overlayer {
+        position: absolute;
+        user-select: text;
+      }
+
+      &.text {
+        position: absolute;
+        color: transparent;
+        cursor: auto;
+        white-space: pre;
+
+        &.horizontal {
+          writing-mode: horizontal-tb;
+        }
+
+        &.vertical {
+          writing-mode: vertical-rl;
+        }
+
+        &::selection {
+          background: rgb(0, 0, 255, 0.25);
+        }
+      }
+
+      &.break {
+        visibility: hidden;
+      }
+    }
+  }
+`;
+document.head.append(styleElement);
+
 const cache = new Map<
   string,
   Promise<{ annotations: Annotation[]; scale: Scale } | undefined>
@@ -205,7 +261,9 @@ const Overlayer: FunctionComponent = () => {
   }
   const imageViewerRect = imageViewerElement.getBoundingClientRect();
 
-  overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
+  overlayerElement.style.left = `${
+    imageViewerRect.right - imageBoxRect.left
+  }px`;
   overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
   if (overlayerElement.parentNode !== imageBoxElement) {
     imageBoxElement.append(overlayerElement);
@@ -222,74 +280,6 @@ const Overlayer: FunctionComponent = () => {
 };
 createRoot(overlayerElement).render(<Overlayer />);
 
-const styleElement = document.createElement("style");
-styleElement.textContent = `
-  .image-box-component {
-    .image-viewer {
-      user-select: none;
-    }
-
-    .anno {
-      &.icon {
-        opacity: 0.75;
-
-        &:active, &:focus, &:hover {
-          opacity: unset;
-        }
-      }
-
-      &.marker {
-        color: transparent;
-        opacity: 0.25;
-
-        &::selection {
-          background: rgb(0, 0, 255);
-        }
-      }
-    }
-
-    .gyanno {
-      &.overlayer {
-        position: absolute;
-        user-select: text;
-      }
-
-      &.text {
-        position: absolute;
-        color: transparent;
-        cursor: auto;
-        overflow: hidden;
-        white-space: pre;
-
-        &.horizontal {
-          writing-mode: horizontal-tb;
-        }
-
-        &.vertical {
-          writing-mode: vertical-rl;
-        }
-
-        &::selection {
-          background: rgb(0, 0, 255, 0.25);
-        }
-      }
-
-      &.break {
-        visibility: hidden;
-      }
-    }
-
-    .gyanno.text.horizontal .anno.marker {
-      vertical-align: top;
-    }
-
-    .gyanno.text.vertical .anno.marker {
-      vertical-align: bottom;
-    }
-  }
-`;
-document.head.append(styleElement);
-
 const GyannoText: FunctionComponent<{
   annotation: Annotation;
   imageViewerRect: DOMRect;
@@ -298,7 +288,7 @@ const GyannoText: FunctionComponent<{
   const style = getStyle(annotation);
   const width = (style.width / scale.width) * imageViewerRect.width;
   const height = (style.height / scale.height) * imageViewerRect.height;
-  const size = Math.min(width, height);
+  const segmentLength = annotation.segments.length;
 
   const [letterSpacing, setLetterSpacing] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
@@ -309,11 +299,14 @@ const GyannoText: FunctionComponent<{
     }
 
     const textRect = ref.current.getBoundingClientRect();
-    setLetterSpacing(
-      (Math.max(width, height) - Math.max(textRect.width, textRect.height)) /
-        annotation.segments.length
-    );
-  }, [annotation, height, width]);
+    setLetterSpacing((prevLetterSpacing) => {
+      const expected = Math.max(width, height);
+      const actual =
+        Math.max(textRect.width, textRect.height) -
+        prevLetterSpacing * segmentLength;
+      return (expected - actual) / segmentLength;
+    });
+  }, [height, segmentLength, width]);
 
   return (
     <span
@@ -322,11 +315,12 @@ const GyannoText: FunctionComponent<{
         style.isHorizontal ? "horizontal" : "vertical"
       }`}
       style={{
-        left: (style.left / scale.width) * imageViewerRect.width,
+        right:
+          (1 - (style.left + style.width) / scale.width) *
+          imageViewerRect.width,
         top: (style.top / scale.height) * imageViewerRect.height,
-        fontSize: size,
+        fontSize: Math.min(width, height),
         letterSpacing,
-        lineHeight: `${size}px`,
       }}
     >
       {annotation.segments.join("")}

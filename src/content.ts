@@ -45,6 +45,34 @@ export interface Page {
   }[];
 }
 
+const styleElement = document.createElement("style");
+styleElement.textContent = `
+  .anno {
+    &.barmap {
+      all: unset;
+      position: fixed;
+      width: 16px;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      background-clip: padding-box;
+      cursor: pointer;
+      opacity: 0.5;
+      z-index: 2147483647;
+    }
+
+    &.icon {
+      all: revert;
+      border: none;
+      vertical-align: text-bottom;
+    }
+
+    &.marker {
+      all: revert;
+    }
+  }
+`;
+document.head.append(styleElement);
+
 const getURL = () => {
   const canonicalLinkElement = document.querySelector(
     'link[rel="canonical" i]'
@@ -508,31 +536,3 @@ mutationObserver.observe(document, {
   childList: true,
   characterData: true,
 });
-
-const styleElement = document.createElement("style");
-styleElement.textContent = `
-  .anno {
-    &.barmap {
-      all: unset;
-      position: fixed;
-      width: 16px;
-      border-top: 8px solid transparent;
-      border-bottom: 8px solid transparent;
-      background-clip: padding-box;
-      cursor: pointer;
-      opacity: 0.5;
-      z-index: 2147483647;
-    }
-
-    &.icon {
-      all: revert;
-      border: none;
-      vertical-align: text-bottom;
-    }
-
-    &.marker {
-      all: revert;
-    }
-  }
-`;
-document.head.append(styleElement);
