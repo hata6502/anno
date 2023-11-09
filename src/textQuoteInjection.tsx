@@ -8,11 +8,13 @@ import {
 export interface TextQuoteInjectionConfig {
   id: string;
   textQuoteSelector: TextQuoteSelector;
+  whiteout: string;
   inject: (range: Range) => State;
 }
 
 interface Injection {
   config: TextQuoteInjectionConfig;
+  minDistance: number;
   states: State[];
 }
 
@@ -38,6 +40,7 @@ export const injectByTextQuote = (configs: TextQuoteInjectionConfig[]) => {
     (config) =>
       injections.find((injection) => injection.config.id === config.id) ?? {
         config,
+        minDistance: Infinity,
         states: [],
       }
   );
@@ -52,27 +55,24 @@ const handle = () => {
     injections = injections
       .map((injection) => ({
         injection,
-        ranges: getNearestRanges(textIndex, injection.config.textQuoteSelector),
+        ...getNearestRanges(
+          textIndex,
+          injection.config.textQuoteSelector,
+          injection.minDistance
+        ),
       }))
-      .map(({ injection, ranges }) => {
-        for (const state of injection.states) {
-          if (ranges.some((range) => isEqualRange(range, state.range))) {
-            continue;
-          }
-
-          state.cleanUp();
-        }
-
-        return {
-          ...injection,
-          states: ranges.map(
-            (range) =>
-              injection.states.find((state) =>
-                isEqualRange(state.range, range)
-              ) ?? injection.config.inject(range)
+      .map(({ injection, nearestRanges, minDistance }) => ({
+        ...injection,
+        minDistance,
+        states: [
+          ...injection.states,
+          ...nearestRanges.flatMap((range) =>
+            injection.states.some((state) => isEqualRange(state.range, range))
+              ? []
+              : [injection.config.inject(range)]
           ),
-        };
-      });
+        ],
+      }));
   } finally {
     mutationObserver.observe(document.body, {
       subtree: true,
@@ -85,11 +85,15 @@ const mutationObserver = new MutationObserver(handle);
 
 const getNearestRanges = (
   textIndex: TextIndex,
-  textQuoteSelector: TextQuoteSelector
+  textQuoteSelector: TextQuoteSelector,
+  prevDistance: number
 ) => {
   const ranges = textQuoteSelectorAll(textIndex, textQuoteSelector);
-
-  return ranges
+  const minDistance = Math.min(
+    prevDistance,
+    ranges.at(0)?.distance ?? Infinity
+  );
+  const nearestRanges = ranges
     .filter(({ range }) => {
       const ancestorHTMLElement =
         range.commonAncestorContainer instanceof HTMLElement
@@ -97,9 +101,8 @@ const getNearestRanges = (
           : range.commonAncestorContainer.parentElement;
       return !ancestorHTMLElement?.isContentEditable;
     })
-    .flatMap(({ range, distance }) =>
-      distance <= ranges[0].distance ? [range] : []
-    );
+    .flatMap(({ range, distance }) => (distance <= minDistance ? [range] : []));
+  return { nearestRanges, minDistance };
 };
 
 const isEqualRange = (a: Range, b: Range) =>

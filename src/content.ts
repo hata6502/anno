@@ -1,3 +1,4 @@
+import { Change } from "diff";
 import type { BackgroundMessage } from "./background";
 import { injectByTextQuote } from "./textQuoteInjection";
 import {
@@ -12,7 +13,6 @@ import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
 export type ContentMessage =
   | {
       type: "mark";
-      annoProjectName: string;
     }
   | {
       type: "inject";
@@ -20,6 +20,7 @@ export type ContentMessage =
     };
 
 export interface InjectionData {
+  annoProjectName: string;
   annopageRecord: Record<string, Page>;
   collaboratedAnnopage?: Page;
 }
@@ -40,6 +41,8 @@ export interface Page {
   annodataRecord: Record<string, Annodata>;
   configs: {
     textQuoteSelector: TextQuoteSelector;
+    whiteout: string;
+    diff: Change[];
     markerText: string;
     annotations: { url: string; width: number; height: number }[];
   }[];
@@ -84,6 +87,92 @@ const getURL = () => {
   );
   url.hash = "";
   return String(url);
+};
+
+const mark = async () => {
+  if (!prevInjectionData) return;
+
+  const title = document.title || new Date().toLocaleString();
+  const headerLines = [];
+
+  if (!prevInjectionData?.collaboratedAnnopage) {
+    const gyazoIDMatch = location.pathname.match(/^\/([0-9a-z]{32})$/);
+    if (location.host.match(/^([0-9a-z\-]+\.)?gyazo.com$/) && gyazoIDMatch) {
+      const response = await fetch(
+        `/${encodeURIComponent(gyazoIDMatch[1])}.json`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch gyazo.com");
+      }
+      const { desc, metadata, permalink_url } = await response.json();
+
+      headerLines.push(
+        ...[
+          `[${permalink_url} ${permalink_url}]`,
+          desc || undefined,
+          metadata.url
+            ? metadata.title
+              ? `[${metadata.title} ${metadata.url}]`
+              : `[${metadata.url}]`
+            : metadata.title,
+          metadata.exif_normalized?.latitude &&
+            `[N${metadata.exif_normalized.latitude},E${metadata.exif_normalized.longitude},Z17]`,
+        ].flatMap((data) => (typeof data === "string" ? data.split("\n") : []))
+      );
+    } else {
+      headerLines.push(`[${title} ${getURL()}]`);
+
+      const ogImageElement = window.document.querySelector(
+        'meta[property="og:image" i]'
+      );
+      const ogImageURL =
+        ogImageElement instanceof window.HTMLMetaElement &&
+        ogImageElement.content;
+      if (ogImageURL) {
+        headerLines.push(`[${ogImageURL}#.png]`);
+      }
+
+      const descriptionElement = window.document.querySelector(
+        'meta[name="description" i]'
+      );
+      const ogDescriptionElement = window.document.querySelector(
+        'meta[property="og:description" i]'
+      );
+      const description =
+        (ogDescriptionElement instanceof window.HTMLMetaElement &&
+          ogDescriptionElement.content) ||
+        (descriptionElement instanceof window.HTMLMetaElement &&
+          descriptionElement.content);
+      if (description) {
+        headerLines.push(...description.split("\n"));
+      }
+
+      const keywordsElement = window.document.querySelector(
+        'meta[name="keywords" i]'
+      );
+      const keywords =
+        keywordsElement instanceof window.HTMLMetaElement &&
+        keywordsElement.content;
+      if (keywords) {
+        headerLines.push(keywords);
+      }
+    }
+
+    headerLines.push(`[${decodeURI(getAnnolink(getURL()))}]`, "");
+  }
+
+  await write({
+    annopageLink: prevInjectionData.collaboratedAnnopage ?? {
+      projectName: prevInjectionData.annoProjectName,
+      title,
+    },
+    headerLines,
+    includesPrefix: true,
+    includesSuffix: true,
+    markerText:
+      prevInjectionData?.collaboratedAnnopage?.configs.at(-1)?.markerText ||
+      "🍀",
+  });
 };
 
 const write = async ({
@@ -151,92 +240,7 @@ let prevInjectionData: InjectionData | undefined;
 chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
   switch (contentMessage.type) {
     case "mark": {
-      const title = document.title || new Date().toLocaleString();
-      const headerLines = [];
-
-      if (!prevInjectionData?.collaboratedAnnopage) {
-        const gyazoIDMatch = location.pathname.match(/^\/([0-9a-z]{32})$/);
-        if (
-          location.host.match(/^([0-9a-z\-]+\.)?gyazo.com$/) &&
-          gyazoIDMatch
-        ) {
-          const response = await fetch(
-            `/${encodeURIComponent(gyazoIDMatch[1])}.json`
-          );
-          if (!response.ok) {
-            throw new Error("Failed to fetch gyazo.com");
-          }
-          const { desc, metadata, permalink_url } = await response.json();
-
-          headerLines.push(
-            ...[
-              `[${permalink_url} ${permalink_url}]`,
-              desc || undefined,
-              metadata.url
-                ? metadata.title
-                  ? `[${metadata.title} ${metadata.url}]`
-                  : `[${metadata.url}]`
-                : metadata.title,
-              metadata.exif_normalized?.latitude &&
-                `[N${metadata.exif_normalized.latitude},E${metadata.exif_normalized.longitude},Z17]`,
-            ].flatMap((data) =>
-              typeof data === "string" ? data.split("\n") : []
-            )
-          );
-        } else {
-          headerLines.push(`[${title} ${getURL()}]`);
-
-          const ogImageElement = window.document.querySelector(
-            'meta[property="og:image" i]'
-          );
-          const ogImageURL =
-            ogImageElement instanceof window.HTMLMetaElement &&
-            ogImageElement.content;
-          if (ogImageURL) {
-            headerLines.push(`[${ogImageURL}#.png]`);
-          }
-
-          const descriptionElement = window.document.querySelector(
-            'meta[name="description" i]'
-          );
-          const ogDescriptionElement = window.document.querySelector(
-            'meta[property="og:description" i]'
-          );
-          const description =
-            (ogDescriptionElement instanceof window.HTMLMetaElement &&
-              ogDescriptionElement.content) ||
-            (descriptionElement instanceof window.HTMLMetaElement &&
-              descriptionElement.content);
-          if (description) {
-            headerLines.push(...description.split("\n"));
-          }
-
-          const keywordsElement = window.document.querySelector(
-            'meta[name="keywords" i]'
-          );
-          const keywords =
-            keywordsElement instanceof window.HTMLMetaElement &&
-            keywordsElement.content;
-          if (keywords) {
-            headerLines.push(keywords);
-          }
-        }
-
-        headerLines.push(`[${decodeURI(getAnnolink(getURL()))}]`, "");
-      }
-
-      await write({
-        annopageLink: prevInjectionData?.collaboratedAnnopage || {
-          projectName: contentMessage.annoProjectName,
-          title,
-        },
-        headerLines,
-        includesPrefix: true,
-        includesSuffix: true,
-        markerText:
-          prevInjectionData?.collaboratedAnnopage?.configs.at(-1)?.markerText ||
-          "🍀",
-      });
+      await mark();
       break;
     }
 
@@ -249,6 +253,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
         configs.map((config) => ({
           id: JSON.stringify(config),
           textQuoteSelector: config.textQuoteSelector,
+          whiteout: config.whiteout,
           inject: (range) => {
             const textRange = getTextRange(range);
             const splittedStartTextNode = textRange.start.textNode.splitText(
@@ -267,7 +272,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             splittedRange.setStart(splittedStartTextNode, 0);
             splittedRange.setEnd(end.textNode, end.offset);
 
-            const textNodes = [];
+            const textNodes: Text[] = [];
             const nodeIterator = document.createNodeIterator(
               splittedRange.commonAncestorContainer,
               NodeFilter.SHOW_TEXT
@@ -288,6 +293,53 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
             }
 
+            let textNodeIndex = 0;
+            let charIndex = 0;
+            const seekTextNode = (edge: "start" | "end") => {
+              let currentTextNode;
+              while ((currentTextNode = textNodes.at(textNodeIndex))) {
+                const text = currentTextNode.textContent ?? "";
+
+                if (
+                  edge === "start"
+                    ? charIndex < text.length
+                    : charIndex <= text.length
+                )
+                  return { currentTextNode, text };
+
+                textNodeIndex++;
+                charIndex -= text.length;
+              }
+            };
+
+            const splittedChanges = config.diff.flatMap((change) =>
+              [...change.value].map((char) => ({ ...change, value: char }))
+            );
+            for (const change of splittedChanges) {
+              if (change.added) {
+                const current = seekTextNode("end");
+                if (!current) break;
+                const { currentTextNode, text } = current;
+
+                currentTextNode.textContent = `${text.slice(0, charIndex)}${
+                  change.value
+                }${text.slice(charIndex)}`;
+
+                charIndex += change.value.length;
+              } else if (change.removed) {
+                const current = seekTextNode("start");
+                if (!current) break;
+                const { currentTextNode, text } = current;
+
+                currentTextNode.textContent = `${text.slice(
+                  0,
+                  charIndex
+                )}${text.slice(charIndex + change.value.length)}`;
+              } else {
+                charIndex += change.value.length;
+              }
+            }
+
             const color = new Map([
               ["🟥", "hsl(0 100% 87.5%)"],
               ["🟧", "hsl(40 100% 87.5%)"],
@@ -297,21 +349,17 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               ["🟪", "hsl(300 100% 87.5%)"],
               ["🟫", "hsl(0 25% 75%)"],
               ["⬛", "hsl(0 0% 75%)"],
-              ["⬜", "hsl(0 0% 100%)"],
+              ["⬜", "transparent"],
             ]).get(config.markerText);
 
-            const markElements = textNodes.flatMap((textNode) => {
-              if (!textNode.textContent?.trim()) {
-                return [];
-              }
-
+            const markElements = textNodes.map((textNode) => {
               const markElement = document.createElement("mark");
               markElement.classList.add("anno", "marker");
               markElement.style.backgroundColor = color ?? "";
 
               textNode.after(markElement);
               markElement.append(textNode);
-              return [markElement];
+              return markElement;
             });
 
             const iframeElements = config.annotations.map((annotation) => {
@@ -359,7 +407,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             if (lastTextNode) {
               nextRange.setEnd(
                 lastTextNode,
-                lastTextNode.textContent?.length ?? 0
+                (lastTextNode.textContent ?? "").length
               );
             }
 
@@ -442,17 +490,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               range: nextRange,
               cleanUp: () => {
                 resizeObserver.disconnect();
-
-                for (const markElement of markElements) {
-                  markElement.after(...markElement.childNodes);
-                  markElement.remove();
-                }
-
-                for (const iframeElement of iframeElements) {
-                  iframeElement.remove();
-                }
-
-                barmapElement.remove();
               },
             };
           },
@@ -535,4 +572,30 @@ mutationObserver.observe(document, {
   subtree: true,
   childList: true,
   characterData: true,
+});
+
+document.body.addEventListener("pointerdown", async (event) => {
+  const selection = getSelection();
+  const selectedElement = document.elementFromPoint(
+    event.clientX,
+    event.clientY
+  );
+  if (
+    !(event.ctrlKey || event.metaKey) ||
+    !event.altKey ||
+    !selection ||
+    !selectedElement
+  )
+    return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const range = new Range();
+  range.selectNode(selectedElement);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  console.log(range);
+
+  await mark();
 });

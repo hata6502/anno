@@ -1,3 +1,4 @@
+import { diffChars } from "diff";
 import PQueue from "p-queue";
 import type {
   Annodata,
@@ -42,7 +43,7 @@ const mark = async ({ tabId }: { tabId: number }) => {
     return;
   }
 
-  const markMessage: ContentMessage = { type: "mark", annoProjectName };
+  const markMessage: ContentMessage = { type: "mark" };
   chrome.tabs.sendMessage(tabId, markMessage);
 };
 
@@ -90,23 +91,22 @@ const inject = async ({
   signal: AbortSignal;
   prevInjectionData?: InjectionData;
 }) => {
+  const { annoProjectName } = await chrome.storage.sync.get(
+    initialStorageValues
+  );
+  if (!annoProjectName) return;
+
   const annopageRecord = { ...prevInjectionData?.annopageRecord };
   let collaboratedAnnopage = prevInjectionData?.collaboratedAnnopage;
   await sendInjectionData({
     tabId,
     injectionData: {
+      annoProjectName,
       annopageRecord,
       collaboratedAnnopage,
     },
     signal,
   });
-
-  const { annoProjectName } = await chrome.storage.sync.get(
-    initialStorageValues
-  );
-  if (!annoProjectName) {
-    return;
-  }
 
   const annolinkPaths = getAnnolink(url).split("/");
   const annolinks = [];
@@ -145,6 +145,7 @@ const inject = async ({
     await sendInjectionData({
       tabId,
       injectionData: {
+        annoProjectName,
         annopageRecord,
         collaboratedAnnopage,
       },
@@ -162,6 +163,7 @@ const inject = async ({
   await sendInjectionData({
     tabId,
     injectionData: {
+      annoProjectName,
       annopageRecord,
       collaboratedAnnopage,
     },
@@ -318,13 +320,8 @@ const fetchAnnopage = async ({
       ];
     });
 
-    let description = sectionText;
-    for (const { body } of annotations) {
-      description = description.replaceAll(body, "");
-    }
-
     const parsedIcons = [];
-    for (const iconExpressionMatch of description.matchAll(
+    for (const iconExpressionMatch of sectionText.matchAll(
       /(\[?)\[([^\]]+)\.icon(?:\*([1-9]\d*))?\](\]?)/g
     )) {
       const title = iconExpressionMatch[2];
@@ -399,6 +396,21 @@ const fetchAnnopage = async ({
       icons.push({ ...icon, isStrong });
     }
 
+    let annotationRemovedText = sectionText;
+    for (const { body } of annotations) {
+      annotationRemovedText = annotationRemovedText.replaceAll(body, "");
+    }
+    const annotationRemovedLines = annotationRemovedText.trim().split("\n");
+    const whiteout = annotationRemovedLines
+      .flatMap((line) => {
+        const match = line.match(/^\s*>(.*)/);
+        return match ? [match[1].trim()] : [];
+      })
+      .join("\n");
+    const description = annotationRemovedLines
+      .filter((line) => !line.trim().startsWith(">"))
+      .join("\n");
+
     for (const { prefix, exact, suffix, markerText } of annotations) {
       const newAnnodataRecord: Record<string, Annodata> = {};
       for (const icon of icons) {
@@ -433,6 +445,8 @@ const fetchAnnopage = async ({
 
       configs.push({
         textQuoteSelector: { prefix, exact, suffix },
+        whiteout,
+        diff: diffChars(exact, whiteout),
         markerText,
         annotations: Object.entries(newAnnodataRecord).map(
           ([id, annodata]) => ({

@@ -20,7 +20,7 @@ await Promise.all(
       ...options,
       bundle: true,
       define: {
-        "process.env.EXTENSION_ID": process.env.EXTENSION_ID,
+        "process.env.EXTENSION_ID": JSON.stringify(process.env.EXTENSION_ID),
       },
       format: "esm",
     })
