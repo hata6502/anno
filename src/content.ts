@@ -401,13 +401,25 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             const nextRange = new Range();
             const firstTextNode = textNodes.at(0);
             if (firstTextNode) {
-              nextRange.setStart(firstTextNode, 0);
+              const padding = splittedChanges
+                .slice(
+                  0,
+                  splittedChanges.findIndex((change) => !change.added)
+                )
+                .reduce((padding, change) => padding + change.value.length, 0);
+              nextRange.setStart(firstTextNode, padding);
             }
+
             const lastTextNode = textNodes.at(-1);
             if (lastTextNode) {
+              const padding = splittedChanges
+                .slice(
+                  splittedChanges.findLastIndex((change) => !change.added) + 1
+                )
+                .reduce((padding, change) => padding + change.value.length, 0);
               nextRange.setEnd(
                 lastTextNode,
-                (lastTextNode.textContent ?? "").length
+                (lastTextNode.textContent ?? "").length - padding
               );
             }
 
