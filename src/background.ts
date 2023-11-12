@@ -445,8 +445,7 @@ const fetchAnnopage = async ({
 
       configs.push({
         textQuoteSelector: { prefix, exact, suffix },
-        whiteout,
-        diff: diffChars(exact, whiteout),
+        diff: diffChars(exact, exact),
         markerText,
         annotations: Object.entries(newAnnodataRecord).map(
           ([id, annodata]) => ({

@@ -41,7 +41,6 @@ export interface Page {
   annodataRecord: Record<string, Annodata>;
   configs: {
     textQuoteSelector: TextQuoteSelector;
-    whiteout: string;
     diff: Change[];
     markerText: string;
     annotations: { url: string; width: number; height: number }[];
@@ -253,7 +252,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
         configs.map((config) => ({
           id: JSON.stringify(config),
           textQuoteSelector: config.textQuoteSelector,
-          whiteout: config.whiteout,
           inject: (range) => {
             const textRange = getTextRange(range);
             const splittedStartTextNode = textRange.start.textNode.splitText(

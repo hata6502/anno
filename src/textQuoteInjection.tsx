@@ -8,7 +8,6 @@ import {
 export interface TextQuoteInjectionConfig {
   id: string;
   textQuoteSelector: TextQuoteSelector;
-  whiteout: string;
   inject: (range: Range) => Pick<State, "range" | "cleanUp">;
 }
 
