@@ -401,7 +401,7 @@ const fetchAnnopage = async ({
       annotationRemovedText = annotationRemovedText.replaceAll(body, "");
     }
     const annotationRemovedLines = annotationRemovedText.trim().split("\n");
-    const whiteout = annotationRemovedLines
+    const mod = annotationRemovedLines
       .flatMap((line) => {
         const match = line.match(/^\s*>(.*)/);
         return match ? [match[1].trim()] : [];
