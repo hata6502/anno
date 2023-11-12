@@ -509,6 +509,17 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               range: nextRange,
               cleanUp: () => {
                 resizeObserver.disconnect();
+
+                for (const markElement of markElements) {
+                  markElement.after(...markElement.childNodes);
+                  markElement.remove();
+                }
+
+                for (const iframeElement of iframeElements) {
+                  iframeElement.remove();
+                }
+
+                barmapElement.remove();
               },
             };
           },
