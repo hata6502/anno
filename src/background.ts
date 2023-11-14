@@ -445,7 +445,10 @@ const fetchAnnopage = async ({
 
       configs.push({
         textQuoteSelector: { prefix, exact, suffix },
-        diff: diffChars(exact, exact),
+        diff: diffChars(
+          exact,
+          annopageProject.name === "hata-tasks" ? mod : exact
+        ),
         markerText,
         annotations: Object.entries(newAnnodataRecord).map(
           ([id, annodata]) => ({
