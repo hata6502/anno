@@ -175,25 +175,31 @@ const Overlayer: FunctionComponent = () => {
                 const aStyle = getStyle(a);
                 const bStyle = getStyle(b);
 
-                const breakCount = Math.round(
-                  Math.abs(
-                    (aStyle.isHorizontal
-                      ? bStyle.top - aStyle.top
-                      : aStyle.left +
-                        aStyle.width -
-                        (bStyle.left + bStyle.width)) / aStyle.size
-                  )
+                const breakCount = Math.min(
+                  Math.round(
+                    Math.abs(
+                      (aStyle.isHorizontal
+                        ? bStyle.top - aStyle.top
+                        : aStyle.left +
+                          aStyle.width -
+                          (bStyle.left + bStyle.width)) / aStyle.size
+                    )
+                  ),
+                  2
                 );
                 a.breakCount = breakCount;
 
                 if (!breakCount) {
-                  a.paddingCount = Math.round(
-                    Math.abs(
-                      (aStyle.isHorizontal
-                        ? bStyle.left - (aStyle.left + aStyle.width)
-                        : bStyle.top - (aStyle.top + aStyle.height)) /
-                        aStyle.size
-                    )
+                  a.paddingCount = Math.min(
+                    Math.round(
+                      Math.abs(
+                        (aStyle.isHorizontal
+                          ? bStyle.left - (aStyle.left + aStyle.width)
+                          : bStyle.top - (aStyle.top + aStyle.height)) /
+                          aStyle.size
+                      )
+                    ),
+                    2
                   );
                 }
               }
