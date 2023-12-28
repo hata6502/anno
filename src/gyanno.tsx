@@ -176,7 +176,7 @@ const Overlayer: FunctionComponent = () => {
                 const bStyle = getStyle(b);
 
                 const breakCount = Math.min(
-                  Math.round(
+                  Math.floor(
                     Math.abs(
                       (aStyle.isHorizontal
                         ? bStyle.top - aStyle.top
@@ -191,7 +191,7 @@ const Overlayer: FunctionComponent = () => {
 
                 if (!breakCount) {
                   a.paddingCount = Math.min(
-                    Math.round(
+                    Math.floor(
                       Math.abs(
                         (aStyle.isHorizontal
                           ? bStyle.left - (aStyle.left + aStyle.width)
