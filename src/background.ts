@@ -101,8 +101,10 @@ const inject = async ({
   const annolinks = getAnnolinks(url);
   const annopageIDs = [];
   for (const [annolinkIndex, annolink] of annolinks.entries()) {
+    const isCollaboratedAnnopage = annolinkIndex === annolinks.length - 1;
+
     const annopageEntriesKey = JSON.stringify({ annoProjectName, annolink });
-    const annopageEntriesMaxAgeMS = annolinkIndex ? 3 * 60 * 1000 : 0;
+    const annopageEntriesMaxAgeMS = isCollaboratedAnnopage ? 0 : 3 * 60 * 1000;
     let annopageEntriesPromise = annopageEntriesCache.get(annopageEntriesKey);
     if (
       !annopageEntriesPromise ||
@@ -126,7 +128,7 @@ const inject = async ({
       annopageIDs.push(annopageID);
     }
 
-    if (annolinkIndex === 0) {
+    if (isCollaboratedAnnopage) {
       collaboratedAnnopage = annopageEntries.at(0)?.[1];
     }
 
