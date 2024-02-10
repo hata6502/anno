@@ -113,7 +113,7 @@ const inject = async ({
   const annolinkPaths = getAnnolink(url).split("/");
   const annolinks = [];
   do {
-    annolinks.push(decodeURI(annolinkPaths.join("/")));
+    annolinks.unshift(decodeURI(annolinkPaths.join("/")));
     annolinkPaths.pop();
   } while (annolinkPaths.length >= 2);
 
