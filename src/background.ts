@@ -1,4 +1,3 @@
-import { diffChars } from "diff";
 import PQueue from "p-queue";
 import type {
   Annodata,
@@ -9,8 +8,6 @@ import type {
 } from "./content";
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
-
-const modEnabled = false;
 
 const annodataIDPrefix = "annodata-";
 const fallbackIconURL =
@@ -403,12 +400,6 @@ const fetchAnnopage = async ({
       annotationRemovedText = annotationRemovedText.replaceAll(body, "");
     }
     const annotationRemovedLines = annotationRemovedText.trim().split("\n");
-    const mod = annotationRemovedLines
-      .flatMap((line) => {
-        const match = line.match(/^\s*>(.*)/);
-        return match ? [match[1].trim()] : [];
-      })
-      .join("\n");
     const description = annotationRemovedLines
       .filter((line) => !line.trim().startsWith(">"))
       .join("\n");
@@ -447,7 +438,6 @@ const fetchAnnopage = async ({
 
       configs.push({
         textQuoteSelector: { prefix, exact, suffix },
-        diff: diffChars(exact, modEnabled ? mod : exact),
         markerText,
         annotations: Object.entries(newAnnodataRecord).map(
           ([id, annodata]) => ({

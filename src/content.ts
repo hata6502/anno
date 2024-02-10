@@ -1,4 +1,3 @@
-import { Change } from "diff";
 import type { BackgroundMessage } from "./background";
 import { injectByTextQuote } from "./textQuoteInjection";
 import {
@@ -41,7 +40,6 @@ export interface Page {
   annodataRecord: Record<string, Annodata>;
   configs: {
     textQuoteSelector: TextQuoteSelector;
-    diff: Change[];
     markerText: string;
     annotations: { url: string; width: number; height: number }[];
   }[];
@@ -310,34 +308,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
             };
 
-            const splittedChanges = config.diff.flatMap((change) =>
-              [...change.value].map((char) => ({ ...change, value: char }))
-            );
-            for (const change of splittedChanges) {
-              if (change.added) {
-                const current = seekTextNode("end");
-                if (!current) break;
-                const { currentTextNode, text } = current;
-
-                currentTextNode.textContent = `${text.slice(0, charIndex)}${
-                  change.value
-                }${text.slice(charIndex)}`;
-
-                charIndex += change.value.length;
-              } else if (change.removed) {
-                const current = seekTextNode("start");
-                if (!current) break;
-                const { currentTextNode, text } = current;
-
-                currentTextNode.textContent = `${text.slice(
-                  0,
-                  charIndex
-                )}${text.slice(charIndex + change.value.length)}`;
-              } else {
-                charIndex += change.value.length;
-              }
-            }
-
             const color = new Map([
               ["🟥", "hsl(0 100% 87.5%)"],
               ["🟧", "hsl(40 100% 87.5%)"],
@@ -401,25 +371,14 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
             const nextRange = new Range();
             const firstTextNode = textNodes.at(0);
             if (firstTextNode) {
-              const padding = splittedChanges
-                .slice(
-                  0,
-                  splittedChanges.findIndex((change) => !change.added)
-                )
-                .reduce((padding, change) => padding + change.value.length, 0);
-              nextRange.setStart(firstTextNode, padding);
+              nextRange.setStart(firstTextNode, 0);
             }
 
             const lastTextNode = textNodes.at(-1);
             if (lastTextNode) {
-              const padding = splittedChanges
-                .slice(
-                  splittedChanges.findLastIndex((change) => !change.added) + 1
-                )
-                .reduce((padding, change) => padding + change.value.length, 0);
               nextRange.setEnd(
                 lastTextNode,
-                (lastTextNode.textContent ?? "").length - padding
+                (lastTextNode.textContent ?? "").length
               );
             }
 
