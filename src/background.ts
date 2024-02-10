@@ -10,6 +10,8 @@ import type {
 import { initialStorageValues } from "./storage";
 import { getAnnolink } from "./url";
 
+const modEnabled = false;
+
 const annodataIDPrefix = "annodata-";
 const fallbackIconURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
@@ -445,10 +447,7 @@ const fetchAnnopage = async ({
 
       configs.push({
         textQuoteSelector: { prefix, exact, suffix },
-        diff: diffChars(
-          exact,
-          annopageProject.name === "hata-tasks" ? mod : exact
-        ),
+        diff: diffChars(exact, modEnabled ? mod : exact),
         markerText,
         annotations: Object.entries(newAnnodataRecord).map(
           ([id, annodata]) => ({
