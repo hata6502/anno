@@ -289,25 +289,6 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               }
             }
 
-            let textNodeIndex = 0;
-            let charIndex = 0;
-            const seekTextNode = (edge: "start" | "end") => {
-              let currentTextNode;
-              while ((currentTextNode = textNodes.at(textNodeIndex))) {
-                const text = currentTextNode.textContent ?? "";
-
-                if (
-                  edge === "start"
-                    ? charIndex < text.length
-                    : charIndex <= text.length
-                )
-                  return { currentTextNode, text };
-
-                textNodeIndex++;
-                charIndex -= text.length;
-              }
-            };
-
             const color = new Map([
               ["🟥", "hsl(0 100% 87.5%)"],
               ["🟧", "hsl(40 100% 87.5%)"],
@@ -317,20 +298,18 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               ["🟪", "hsl(300 100% 87.5%)"],
               ["🟫", "hsl(0 25% 75%)"],
               ["⬛", "hsl(0 0% 75%)"],
+              ["⬜", "transparent"],
             ]).get(config.markerText);
 
-            const markElements =
-              config.markerText === "⬜"
-                ? []
-                : textNodes.map((textNode) => {
-                    const markElement = document.createElement("mark");
-                    markElement.classList.add("anno", "marker");
-                    markElement.style.backgroundColor = color ?? "";
+            const markElements = textNodes.map((textNode) => {
+              const markElement = document.createElement("mark");
+              markElement.classList.add("anno", "marker");
+              markElement.style.backgroundColor = color ?? "";
 
-                    textNode.after(markElement);
-                    markElement.append(textNode);
-                    return markElement;
-                  });
+              textNode.after(markElement);
+              markElement.append(textNode);
+              return markElement;
+            });
 
             const iframeElements = config.annotations.map((annotation) => {
               const iframeElement = document.createElement("iframe");
@@ -384,12 +363,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
             const barmapElement = document.createElement("button");
             barmapElement.classList.add("anno", "barmap");
-            if (config.markerText === "⬜") {
-              barmapElement.style.display = "none";
-            } else {
-              barmapElement.style.backgroundColor =
-                color ?? "rgb(91, 165, 111)";
-            }
+            barmapElement.style.backgroundColor = color ?? "rgb(91, 165, 111)";
 
             barmapElement.addEventListener("click", () => {
               const { exact, prefix, suffix } = quoteText(
