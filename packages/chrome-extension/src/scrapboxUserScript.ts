@@ -1,5 +1,7 @@
 import type { ExternalBackgroundMessage } from "./background";
-import { annoProtocolMap, encodeForScrapboxReadableLink } from "./url";
+import { encodeForScrapboxReadableLink } from "./url";
+
+import { annoProtocolMap } from "scrapbox-loader";
 
 const EXTENSION_ID = process.env.EXTENSION_ID;
 if (!EXTENSION_ID) {

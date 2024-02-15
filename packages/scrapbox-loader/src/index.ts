@@ -1,15 +1,39 @@
-import type { Annodata, Link, Page } from "./content";
-import { getAnnolink } from "./url";
+import { TextQuoteSelector } from "text-quote-selector";
 
-export const annodataIDPrefix = "annodata-";
+export interface Annodata {
+  url: string;
+  description: string;
+  iconURL: string;
+  iconWidth: number;
+  iconHeight: number;
+}
 
-const fallbackIconURL =
-  "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
+export type Link = Pick<Page, "projectName" | "title">;
+
+export interface Page {
+  projectName: string;
+  title: string;
+  annodataRecord: Record<string, Annodata>;
+  configs: {
+    textQuoteSelector: TextQuoteSelector;
+    markerText: string;
+    annotations: { url: string; width: number; height: number }[];
+  }[];
+}
 
 interface Project {
   name: string;
   image?: string;
 }
+
+export const annodataIDPrefix = "annodata-";
+export const annoProtocolMap = new Map([
+  ["http:", "anno:"],
+  ["https:", "annos:"],
+]);
+
+const fallbackIconURL =
+  "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
 
 export const clearScrapboxLoaderCache = () => {
   iconCache.clear();
@@ -72,6 +96,16 @@ export const fetchAnnopagesByAnnolink = async ({
   }
 
   return annopageEntries;
+};
+
+export const getAnnolink = (url: string) => {
+  let replacedURL = url;
+  for (const [protocol, annoProtocol] of annoProtocolMap) {
+    if (replacedURL.startsWith(protocol)) {
+      replacedURL = replacedURL.replace(protocol, annoProtocol);
+    }
+  }
+  return replacedURL;
 };
 
 export const getAnnolinks = (url: string) => {

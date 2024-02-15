@@ -1,12 +1,15 @@
-import PQueue from "p-queue";
-import type { ContentMessage, InjectionData, Page } from "./content";
+import type { ContentMessage, InjectionData } from "./content";
+import { initialStorageValues } from "./storage";
+
 import {
+  Page,
   clearScrapboxLoaderCache,
   annodataIDPrefix,
   fetchAnnopagesByAnnolink,
   getAnnolinks,
-} from "./scrapboxLoader";
-import { initialStorageValues } from "./storage";
+} from "scrapbox-loader";
+
+import PQueue from "p-queue";
 
 export type BackgroundMessage =
   | { type: "open"; url: string }

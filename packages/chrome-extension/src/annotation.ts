@@ -1,5 +1,6 @@
 import type { BackgroundMessage } from "./background";
-import type { Annodata } from "./content";
+
+import { Annodata } from "scrapbox-loader";
 
 document.body.style.margin = "0px";
 

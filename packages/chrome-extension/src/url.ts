@@ -1,8 +1,3 @@
-export const annoProtocolMap = new Map([
-  ["http:", "anno:"],
-  ["https:", "annos:"],
-]);
-
 export const encodeForScrapboxReadableLink = (uriComponent: string) => {
   let encoded = encodeURIComponent(uriComponent);
 
@@ -15,14 +10,4 @@ export const encodeForScrapboxReadableLink = (uriComponent: string) => {
   }
 
   return encoded;
-};
-
-export const getAnnolink = (url: string) => {
-  let replacedURL = url;
-  for (const [protocol, annoProtocol] of annoProtocolMap) {
-    if (replacedURL.startsWith(protocol)) {
-      replacedURL = replacedURL.replace(protocol, annoProtocol);
-    }
-  }
-  return replacedURL;
 };

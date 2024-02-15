@@ -1,13 +1,14 @@
 import type { BackgroundMessage } from "./background";
 import { injectByTextQuote } from "./textQuoteInjection";
 import {
-  TextQuoteSelector,
   getTextIndex,
   getTextRange,
   quoteText,
   textQuoteSelectorAll,
 } from "text-quote-selector";
-import { encodeForScrapboxReadableLink, getAnnolink } from "./url";
+import { encodeForScrapboxReadableLink } from "./url";
+
+import { Link, Page, getAnnolink } from "scrapbox-loader";
 
 export type ContentMessage =
   | {
@@ -22,27 +23,6 @@ export interface InjectionData {
   annoProjectName: string;
   annopageRecord: Record<string, Page>;
   collaboratedAnnopage?: Page;
-}
-
-export interface Annodata {
-  url: string;
-  description: string;
-  iconURL: string;
-  iconWidth: number;
-  iconHeight: number;
-}
-
-export type Link = Pick<Page, "projectName" | "title">;
-
-export interface Page {
-  projectName: string;
-  title: string;
-  annodataRecord: Record<string, Annodata>;
-  configs: {
-    textQuoteSelector: TextQuoteSelector;
-    markerText: string;
-    annotations: { url: string; width: number; height: number }[];
-  }[];
 }
 
 const styleElement = document.createElement("style");
