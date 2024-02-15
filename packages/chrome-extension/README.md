@@ -1,11 +1,5 @@
 # anno - Marker for web with Scrapbox
 
-## Build
-
-```bash
-$ dotenv npm run build
-```
-
 ## Disclaimer
 
 The following creations are included in this product:

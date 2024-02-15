@@ -11,11 +11,12 @@ jobs:
           node-version: 20
       - run: npm ci
 
-      - run: npm run build
+      - run: npm run -w packages/chrome-extension build
         env:
           EXTENSION_ID: ${{ vars.EXTENSION_ID }}
 
       - uses: actions/upload-artifact@v3
+        working-directory: packages/chrome-extension
         with:
           name: package
           path: |

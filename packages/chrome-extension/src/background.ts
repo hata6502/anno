@@ -21,7 +21,6 @@ export type ExternalBackgroundMessage = {
 
 const fetchQueue = new PQueue({ interval: 5000, intervalCap: 5 });
 const queuedFetch: typeof fetch = (input, init) =>
-  // @ts-expect-error
   fetchQueue.add(() => fetch(input, init), { throwOnTimeout: true });
 
 const mark = async ({ tabId }: { tabId: number }) => {
