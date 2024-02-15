@@ -11,6 +11,7 @@ jobs:
           node-version: 20
       - run: npm ci
 
+      - run: touch packages/chrome-extension/.env
       - run: npm run -w packages/chrome-extension build
         env:
           EXTENSION_ID: ${{ vars.EXTENSION_ID }}
