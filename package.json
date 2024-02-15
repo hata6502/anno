@@ -12,10 +12,12 @@
   },
   "author": "hata6502",
   "devDependencies": {
+    "esbuild": "^0.19.5",
     "text-quote-selector": "^1.1.2",
     "typescript": "^5.1.6"
   },
   "workspaces": [
+    "packages/annopatch",
     "packages/chrome-extension",
     "packages/scrapbox-loader"
   ]

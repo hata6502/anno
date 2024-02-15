@@ -1,0 +1,10 @@
+{
+  "name": "annopatch",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/index.mjs",
+    "test": "tsc --noEmit"
+  }
+}
