@@ -16,14 +16,13 @@ jobs:
           EXTENSION_ID: ${{ vars.EXTENSION_ID }}
 
       - uses: actions/upload-artifact@v3
-        working-directory: packages/chrome-extension
         with:
           name: package
           path: |
-            annotation.html
-            dist
-            icon16.png
-            icon48.png
-            icon128.png
-            manifest.json
-            options.html
+            packages/chrome-extension/annotation.html
+            packages/chrome-extension/dist
+            packages/chrome-extension/icon16.png
+            packages/chrome-extension/icon48.png
+            packages/chrome-extension/icon128.png
+            packages/chrome-extension/manifest.json
+            packages/chrome-extension/options.html
