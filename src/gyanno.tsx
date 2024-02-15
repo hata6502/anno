@@ -182,7 +182,8 @@ const Overlayer: FunctionComponent = () => {
                         ? bStyle.top - aStyle.top
                         : aStyle.left +
                           aStyle.width -
-                          (bStyle.left + bStyle.width)) / aStyle.size
+                          (bStyle.left + bStyle.width)) /
+                        (aStyle.size * 1.75)
                     )
                   ),
                   2
