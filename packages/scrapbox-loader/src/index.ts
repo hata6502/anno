@@ -1,3 +1,4 @@
+import { diffChars } from "diff";
 import { TextQuoteSelector } from "text-quote-selector";
 
 export type Annolink = Pick<Annopage, "projectName" | "title">;
@@ -200,6 +201,12 @@ const fetchAnnopage = async ({
       annotationRemovedText = annotationRemovedText.replaceAll(body, "");
     }
     const annotationRemovedLines = annotationRemovedText.trim().split("\n");
+    const mod = annotationRemovedLines
+      .flatMap((line) => {
+        const match = line.match(/^\s*>(.*)/);
+        return match ? [match[1].trim()] : [];
+      })
+      .join("\n");
     const description = annotationRemovedLines
       .filter((line) => !line.trim().startsWith(">"))
       .join("\n");
@@ -233,6 +240,7 @@ const fetchAnnopage = async ({
     for (const { prefix, exact, suffix, markerText } of annotations) {
       configs.push({
         textQuoteSelector: { prefix, exact, suffix },
+        diff: diffChars(exact, mod),
         markerText,
         lineID: section[0].id,
         description,

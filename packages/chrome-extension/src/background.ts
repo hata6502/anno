@@ -241,14 +241,7 @@ const fetchPages = async ({
 
 const iconCache = new Map<
   string,
-  Promise<
-    | {
-        url: string;
-        width: number;
-        height: number;
-      }
-    | undefined
-  >
+  Promise<{ url: string; width: number; height: number } | undefined>
 >();
 const fetchIcon = async (url: string) => {
   // 帯域制限せずにFetch APIを使える
@@ -296,10 +289,7 @@ const sendInjectionData = async ({
     throw new DOMException("Aborted", "AbortError");
   }
 
-  const injectMessage: ContentMessage = {
-    type: "inject",
-    injectionData,
-  };
+  const injectMessage: ContentMessage = { type: "inject", injectionData };
   chrome.tabs.sendMessage(tabId, injectMessage);
 };
 

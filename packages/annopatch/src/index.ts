@@ -1,6 +1,6 @@
-import { fetchAnnopagesByAnnolink, getAnnolinks } from "scrapbox-loader";
+import { fetchAnnopages, getAnnolinks } from "scrapbox-loader";
 
-const fetchAnnopageRecord = async ({
+const fetchPages = async ({
   annoProjectName,
   url,
 }: {
@@ -9,19 +9,19 @@ const fetchAnnopageRecord = async ({
 }) => {
   const annopageEntries = await Promise.all(
     getAnnolinks(url).map((annolink) =>
-      fetchAnnopagesByAnnolink({
-        annoProjectName,
-        annolink,
-        fetcher: fetch,
-      })
+      fetchAnnopages({ annoProjectName, annolink, fetcher: fetch })
     )
   );
-  return Object.fromEntries(annopageEntries.flat());
+  return annopageEntries.flat().flatMap(([, annopage]) => annopage);
 };
 
 console.log(
-  await fetchAnnopageRecord({
-    annoProjectName: "hata6502",
-    url: "https://example.com/",
-  })
+  JSON.stringify(
+    await fetchPages({
+      annoProjectName: "hata6502",
+      url: "https://example.com/",
+    }),
+    null,
+    2
+  )
 );
