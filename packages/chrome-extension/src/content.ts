@@ -8,7 +8,9 @@ import {
 } from "text-quote-selector";
 import { encodeForScrapboxReadableLink } from "./url";
 
-import { Link, Page, getAnnolink } from "scrapbox-loader";
+import { Annolink, getAnnolink } from "scrapbox-loader";
+
+import { TextQuoteSelector } from "text-quote-selector";
 
 export type ContentMessage =
   | {
@@ -21,8 +23,18 @@ export type ContentMessage =
 
 export interface InjectionData {
   annoProjectName: string;
-  annopageRecord: Record<string, Page>;
-  collaboratedAnnopage?: Page;
+  pageRecord: Record<string, InjectionPage>;
+  collaboratedPage?: InjectionPage;
+}
+
+export interface InjectionPage {
+  projectName: string;
+  title: string;
+  configs: {
+    textQuoteSelector: TextQuoteSelector;
+    markerText: string;
+    iframes: { url: string; width: number; height: number }[];
+  }[];
 }
 
 const styleElement = document.createElement("style");
@@ -72,7 +84,7 @@ const mark = async () => {
   const title = document.title || new Date().toLocaleString();
   const headerLines = [];
 
-  if (!prevInjectionData?.collaboratedAnnopage) {
+  if (!prevInjectionData?.collaboratedPage) {
     const gyazoIDMatch = location.pathname.match(/^\/([0-9a-z]{32})$/);
     if (location.host.match(/^([0-9a-z\-]+\.)?gyazo.com$/) && gyazoIDMatch) {
       const response = await fetch(
@@ -139,7 +151,7 @@ const mark = async () => {
   }
 
   await write({
-    annopageLink: prevInjectionData.collaboratedAnnopage ?? {
+    annopageLink: prevInjectionData.collaboratedPage ?? {
       projectName: prevInjectionData.annoProjectName,
       title,
     },
@@ -147,8 +159,7 @@ const mark = async () => {
     includesPrefix: true,
     includesSuffix: true,
     markerText:
-      prevInjectionData?.collaboratedAnnopage?.configs.at(-1)?.markerText ||
-      "🍀",
+      prevInjectionData?.collaboratedPage?.configs.at(-1)?.markerText || "🍀",
   });
 };
 
@@ -159,7 +170,7 @@ const write = async ({
   includesSuffix,
   markerText,
 }: {
-  annopageLink: Link;
+  annopageLink: Annolink;
   headerLines: string[];
   includesPrefix: boolean;
   includesSuffix: boolean;
@@ -223,7 +234,7 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
 
     case "inject": {
       const configs = Object.values(
-        contentMessage.injectionData.annopageRecord
+        contentMessage.injectionData.pageRecord
       ).flatMap(({ configs }) => configs);
 
       injectByTextQuote(
@@ -291,17 +302,17 @@ chrome.runtime.onMessage.addListener(async (contentMessage: ContentMessage) => {
               return markElement;
             });
 
-            const iframeElements = config.annotations.map((annotation) => {
+            const iframeElements = config.iframes.map((iframe) => {
               const iframeElement = document.createElement("iframe");
-              iframeElement.src = annotation.url;
+              iframeElement.src = iframe.url;
               iframeElement.sandbox.add(
                 "allow-popups",
                 "allow-popups-to-escape-sandbox",
                 "allow-scripts"
               );
               iframeElement.classList.add("anno", "icon");
-              iframeElement.style.width = `${annotation.width}px`;
-              iframeElement.style.height = `${annotation.height}px`;
+              iframeElement.style.width = `${iframe.width}px`;
+              iframeElement.style.height = `${iframe.height}px`;
               return iframeElement;
             });
             markElements.at(-1)?.after(...iframeElements);

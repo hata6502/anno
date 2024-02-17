@@ -1,6 +1,12 @@
 import type { BackgroundMessage } from "./background";
 
-import { Annodata } from "scrapbox-loader";
+export interface IframeData {
+  url: string;
+  description: string;
+  iconURL: string;
+  iconWidth: number;
+  iconHeight: number;
+}
 
 document.body.style.margin = "0px";
 
@@ -10,9 +16,9 @@ if (!id) {
   throw new Error("id is empty. ");
 }
 
-const { [id]: annodata } = await chrome.storage.local.get(id);
-const { url, description, iconURL, iconWidth, iconHeight } =
-  annodata as Annodata;
+const { [id]: iframeData } = await chrome.storage.local.get(id);
+const { url, description, iconURL, iconWidth, iconHeight }: IframeData =
+  iframeData;
 
 const linkElement = document.createElement("a");
 linkElement.href = url;

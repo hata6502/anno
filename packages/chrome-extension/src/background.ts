@@ -1,11 +1,10 @@
-import type { ContentMessage, InjectionData } from "./content";
+import type { IframeData } from "./annotation";
+import type { ContentMessage, InjectionData, InjectionPage } from "./content";
 import { initialStorageValues } from "./storage";
 
 import {
-  Page,
   clearScrapboxLoaderCache,
-  annodataIDPrefix,
-  fetchAnnopagesByAnnolink,
+  fetchAnnopages,
   getAnnolinks,
 } from "scrapbox-loader";
 
@@ -21,6 +20,8 @@ export type ExternalBackgroundMessage = {
   pageTitle: string;
   annolinks: string[];
 };
+
+const iframeIDPrefix = "iframe-";
 
 const fetchQueue = new PQueue({ interval: 5000, intervalCap: 5 });
 const queuedFetch: typeof fetch = (input, init) =>
@@ -64,10 +65,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-const annopageEntriesCache = new Map<
+const pageEntriesCache = new Map<
   string,
   {
-    value: Promise<[string, Page][]>;
+    value: Promise<[string, InjectionPage][]>;
     storedAt: Date;
   }
 >();
@@ -88,14 +89,14 @@ const inject = async ({
   );
   if (!annoProjectName) return;
 
-  const annopageRecord = { ...prevInjectionData?.annopageRecord };
-  let collaboratedAnnopage = prevInjectionData?.collaboratedAnnopage;
+  const pageRecord = { ...prevInjectionData?.pageRecord };
+  let collaboratedPage = prevInjectionData?.collaboratedPage;
   await sendInjectionData({
     tabId,
     injectionData: {
       annoProjectName,
-      annopageRecord,
-      collaboratedAnnopage,
+      pageRecord,
+      collaboratedPage,
     },
     signal,
   });
@@ -107,60 +108,179 @@ const inject = async ({
 
     const annopageEntriesKey = JSON.stringify({ annoProjectName, annolink });
     const annopageEntriesMaxAgeMS = isCollaboratedAnnopage ? 0 : 3 * 60 * 1000;
-    let annopageEntriesPromise = annopageEntriesCache.get(annopageEntriesKey);
+    let pageEntriesPromise = pageEntriesCache.get(annopageEntriesKey);
     if (
-      !annopageEntriesPromise ||
-      new Date().getTime() - annopageEntriesPromise.storedAt.getTime() >=
+      !pageEntriesPromise ||
+      new Date().getTime() - pageEntriesPromise.storedAt.getTime() >=
         annopageEntriesMaxAgeMS
     ) {
-      annopageEntriesPromise = {
-        value: fetchAnnopagesByAnnolink({
+      pageEntriesPromise = {
+        value: fetchPages({
           annoProjectName,
           annolink,
-          fetcher: queuedFetch,
         }),
         storedAt: new Date(),
       };
     }
-    annopageEntriesCache.set(annopageEntriesKey, annopageEntriesPromise);
-    const annopageEntries = await annopageEntriesPromise.value;
+    pageEntriesCache.set(annopageEntriesKey, pageEntriesPromise);
+    const annopageEntries = await pageEntriesPromise.value;
 
     for (const [annopageID, annopage] of annopageEntries) {
-      annopageRecord[annopageID] = annopage;
+      pageRecord[annopageID] = annopage;
       annopageIDs.push(annopageID);
     }
 
     if (isCollaboratedAnnopage) {
-      collaboratedAnnopage = annopageEntries.at(0)?.[1];
+      collaboratedPage = annopageEntries.at(0)?.[1];
     }
 
     await sendInjectionData({
       tabId,
       injectionData: {
         annoProjectName,
-        annopageRecord,
-        collaboratedAnnopage,
+        pageRecord,
+        collaboratedPage,
       },
       signal,
     });
   }
 
-  for (const annopageID of Object.keys(annopageRecord)) {
+  for (const annopageID of Object.keys(pageRecord)) {
     if (annopageIDs.includes(annopageID)) {
       continue;
     }
 
-    delete annopageRecord[annopageID];
+    delete pageRecord[annopageID];
   }
   await sendInjectionData({
     tabId,
     injectionData: {
       annoProjectName,
-      annopageRecord,
-      collaboratedAnnopage,
+      pageRecord,
+      collaboratedPage,
     },
     signal,
   });
+};
+
+const fetchPages = async ({
+  annoProjectName,
+  annolink,
+}: {
+  annoProjectName: string;
+  annolink: string;
+}) => {
+  const annopageEntries = await fetchAnnopages({
+    annoProjectName,
+    annolink,
+    fetcher: queuedFetch,
+  });
+
+  return Promise.all(
+    annopageEntries.map(
+      async ([annopageID, annopage]): Promise<[string, InjectionPage]> => {
+        const configs = await Promise.all(
+          annopage.configs.map(async (config) => {
+            const icons = [];
+            for (const { url, isStrong } of config.icons) {
+              const iconPromise = iconCache.get(url) ?? fetchIcon(url);
+              iconCache.set(url, iconPromise);
+
+              const icon = await iconPromise;
+              if (!icon) {
+                continue;
+              }
+              icons.push({ ...icon, isStrong });
+            }
+
+            const iframes = [];
+            for (const icon of icons) {
+              const height = icon.isStrong ? 56 : 28;
+              const width = (icon.width / icon.height) * height;
+              const iframeData: IframeData = {
+                url: `https://scrapbox.io/${encodeURIComponent(
+                  annopage.projectName
+                )}/${encodeURIComponent(annopage.title)}?followRename#${
+                  config.lineID
+                }`,
+                description: config.description,
+                iconURL: icon.url,
+                iconWidth: width,
+                iconHeight: height,
+              };
+
+              const id = `${iframeIDPrefix}${[
+                ...new Uint8Array(
+                  await crypto.subtle.digest(
+                    "SHA-256",
+                    new TextEncoder().encode(JSON.stringify(iframeData))
+                  )
+                ),
+              ]
+                .map((uint8) => uint8.toString(16).padStart(2, "0"))
+                .join("")}`;
+              await chrome.storage.local.set({ [id]: iframeData });
+              iframes.push({
+                url: `${chrome.runtime.getURL(
+                  "annotation.html"
+                )}?${new URLSearchParams({ id })}`,
+                width,
+                height,
+              });
+            }
+
+            return { ...config, iframes };
+          })
+        );
+
+        return [annopageID, { ...annopage, configs }];
+      }
+    )
+  );
+};
+
+const iconCache = new Map<
+  string,
+  Promise<
+    | {
+        url: string;
+        width: number;
+        height: number;
+      }
+    | undefined
+  >
+>();
+const fetchIcon = async (url: string) => {
+  // 帯域制限せずにFetch APIを使える
+  const iconResponse = await fetch(url);
+  if (!iconResponse.ok) {
+    console.error(`Failed to fetch icon: ${iconResponse.status}`);
+    return;
+  }
+  const imageBitmap = await createImageBitmap(await iconResponse.blob());
+
+  const height = 128;
+  const width = (imageBitmap.width / imageBitmap.height) * height;
+
+  const canvas = new OffscreenCanvas(width, height);
+  const canvasContext = canvas.getContext("2d");
+  if (!canvasContext) {
+    throw new Error("Failed to get offscreenCanvas context. ");
+  }
+  canvasContext.drawImage(imageBitmap, 0, 0, width, height);
+
+  const fileReader = new FileReader();
+  const dataURL = await new Promise<string>(async (resolve) => {
+    fileReader.addEventListener("load", () => {
+      if (typeof fileReader.result !== "string") {
+        throw new Error("fileReader result is not string. ");
+      }
+      resolve(fileReader.result);
+    });
+    fileReader.readAsDataURL(await canvas.convertToBlob());
+  });
+
+  return { url: dataURL, width, height };
 };
 
 const sendInjectionData = async ({
@@ -176,12 +296,6 @@ const sendInjectionData = async ({
     throw new DOMException("Aborted", "AbortError");
   }
 
-  for (const { annodataRecord } of Object.values(
-    injectionData.annopageRecord
-  )) {
-    await chrome.storage.local.set(annodataRecord);
-  }
-
   const injectMessage: ContentMessage = {
     type: "inject",
     injectionData,
@@ -190,10 +304,10 @@ const sendInjectionData = async ({
 };
 
 chrome.runtime.onStartup.addListener(async () => {
-  const annodataKeys = Object.keys(await chrome.storage.local.get(null)).filter(
-    (key) => key.startsWith(annodataIDPrefix)
+  const iconKeys = Object.keys(await chrome.storage.local.get(null)).filter(
+    (key) => key.startsWith(iframeIDPrefix)
   );
-  await chrome.storage.local.remove(annodataKeys);
+  await chrome.storage.local.remove(iconKeys);
 });
 
 let annoTabId: number | undefined;
@@ -287,7 +401,8 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
   }
 
   clearScrapboxLoaderCache();
-  annopageEntriesCache.clear();
+  iconCache.clear();
+  pageEntriesCache.clear();
 });
 
 const tryGetTab = async (tabId: number) => {
