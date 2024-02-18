@@ -17,7 +17,6 @@
     "typescript": "^5.1.6"
   },
   "workspaces": [
-    "packages/annopatch-server",
     "packages/chrome-extension",
     "packages/scrapbox-loader"
   ]

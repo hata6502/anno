@@ -1,4 +1,3 @@
 /node_modules
-/packages/annopatch-server/dist
 /packages/chrome-extension/.env
 /packages/chrome-extension/dist
