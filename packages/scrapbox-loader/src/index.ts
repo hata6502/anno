@@ -23,16 +23,25 @@ interface Project {
   image?: string;
 }
 
-export const annoProtocolMap = new Map([
+const annoProtocolMap = new Map([
   ["http:", "anno:"],
   ["https:", "annos:"],
 ]);
-
 const fallbackIconURL =
   "https://i.gyazo.com/1e3dbb79088aa1627d7e092481848df5.png";
 
 export const clearScrapboxLoaderCache = () => {
   projectCache.clear();
+};
+
+export const extractAnnolink = (url: string) => {
+  const annolinkPaths = getAnnolink(url).split("/");
+  const annolinks = [];
+  do {
+    annolinks.unshift(decodeURI(annolinkPaths.join("/")));
+    annolinkPaths.pop();
+  } while (annolinkPaths.length >= 2);
+  return annolinks;
 };
 
 export const fetchAnnopages = async ({
@@ -102,15 +111,8 @@ export const getAnnolink = (url: string) => {
   return replacedURL;
 };
 
-export const getAnnolinks = (url: string) => {
-  const annolinkPaths = getAnnolink(url).split("/");
-  const annolinks = [];
-  do {
-    annolinks.unshift(decodeURI(annolinkPaths.join("/")));
-    annolinkPaths.pop();
-  } while (annolinkPaths.length >= 2);
-  return annolinks;
-};
+export const isAnnolink = (url: string) =>
+  [...annoProtocolMap].some(([, annoProtocol]) => url.startsWith(annoProtocol));
 
 const projectCache = new Map<string, Promise<Project | undefined>>();
 

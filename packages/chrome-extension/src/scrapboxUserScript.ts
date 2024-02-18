@@ -1,7 +1,7 @@
 import type { ExternalBackgroundMessage } from "./background";
 import { encodeForScrapboxReadableLink } from "./url";
 
-import { annoProtocolMap } from "scrapbox-loader";
+import { isAnnolink } from "scrapbox-loader";
 
 const EXTENSION_ID = process.env.EXTENSION_ID;
 if (!EXTENSION_ID) {
@@ -136,11 +136,7 @@ const extractAnnolink = (value: unknown) => {
   }
   const { page } = unit;
 
-  if (
-    [...annoProtocolMap].every(
-      ([, annoProtocol]) => !page.startsWith(annoProtocol)
-    )
-  ) {
+  if (!isAnnolink(page)) {
     return;
   }
 

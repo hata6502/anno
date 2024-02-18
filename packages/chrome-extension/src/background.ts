@@ -5,7 +5,7 @@ import { initialStorageValues } from "./storage";
 import {
   clearScrapboxLoaderCache,
   fetchAnnopages,
-  getAnnolinks,
+  extractAnnolink,
 } from "scrapbox-loader";
 
 import PQueue from "p-queue";
@@ -101,7 +101,7 @@ const inject = async ({
     signal,
   });
 
-  const annolinks = getAnnolinks(url);
+  const annolinks = extractAnnolink(url);
   const annopageIDs = [];
   for (const [annolinkIndex, annolink] of annolinks.entries()) {
     const isCollaboratedAnnopage = annolinkIndex === annolinks.length - 1;
