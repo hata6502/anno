@@ -147,7 +147,7 @@ const mark = async () => {
       }
     }
 
-    headerLines.push(`[${decodeURI(getAnnolink(getURL()))}]`, "");
+    headerLines.push(`#annopage [${decodeURI(getAnnolink(getURL()))}]`, "");
   }
 
   await write({
