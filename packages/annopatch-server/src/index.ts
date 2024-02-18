@@ -3,6 +3,8 @@ import { fetchAnnopages, getAnnolinks } from "scrapbox-loader";
 import { HttpFunction } from "@google-cloud/functions-framework";
 
 export const index: HttpFunction = async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+
   const { annoProjectName, url } = req.query;
   if (typeof annoProjectName !== "string") {
     res.status(400).send("annoProjectName is required");
