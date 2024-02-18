@@ -1,0 +1,9 @@
+{
+  "name": "text-quote-injection",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "tsc --noEmit"
+  }
+}

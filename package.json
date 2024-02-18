@@ -19,6 +19,7 @@
   "workspaces": [
     "packages/annopatch",
     "packages/chrome-extension",
-    "packages/scrapbox-loader"
+    "packages/scrapbox-loader",
+    "packages/text-quote-injection"
   ]
 }

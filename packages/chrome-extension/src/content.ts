@@ -1,16 +1,16 @@
 import type { BackgroundMessage } from "./background";
-import { injectByTextQuote } from "./textQuoteInjection";
+import { encodeForScrapboxReadableLink } from "./url";
+
+import { Annolink, getAnnolink } from "scrapbox-loader";
+import { getCanonicalURL, injectByTextQuote } from "text-quote-injection";
+
 import {
+  TextQuoteSelector,
   getTextIndex,
   getTextRange,
   quoteText,
   textQuoteSelectorAll,
 } from "text-quote-selector";
-import { encodeForScrapboxReadableLink } from "./url";
-
-import { Annolink, getAnnolink } from "scrapbox-loader";
-
-import { TextQuoteSelector } from "text-quote-selector";
 
 export type ContentMessage =
   | {
@@ -65,19 +65,6 @@ styleElement.textContent = `
 `;
 document.head.append(styleElement);
 
-const getURL = () => {
-  const canonicalLinkElement = document.querySelector(
-    'link[rel="canonical" i]'
-  );
-  const url = new URL(
-    (canonicalLinkElement instanceof HTMLLinkElement &&
-      canonicalLinkElement.href) ||
-      location.href
-  );
-  url.hash = "";
-  return String(url);
-};
-
 const mark = async () => {
   if (!prevInjectionData) return;
 
@@ -109,7 +96,7 @@ const mark = async () => {
         ].flatMap((data) => (typeof data === "string" ? data.split("\n") : []))
       );
     } else {
-      headerLines.push(`[${title} ${getURL()}]`);
+      headerLines.push(`[${title} ${getCanonicalURL()}]`);
 
       const ogImageElement = window.document.querySelector(
         'meta[property="og:image" i]'
@@ -147,7 +134,10 @@ const mark = async () => {
       }
     }
 
-    headerLines.push(`#annopage [${decodeURI(getAnnolink(getURL()))}]`, "");
+    headerLines.push(
+      `#annopage [${decodeURI(getAnnolink(getCanonicalURL()))}]`,
+      ""
+    );
   }
 
   await write({
@@ -188,7 +178,7 @@ const write = async ({
     );
 
     lines.push(
-      `[${markerText} ${getURL()}#${[
+      `[${markerText} ${getCanonicalURL()}#${[
         `e=${encodeForScrapboxReadableLink(textQuoteSelector.exact)}`,
         ...(includesPrefix && textQuoteSelector.prefix
           ? [`p=${encodeForScrapboxReadableLink(textQuoteSelector.prefix)}`]
@@ -503,7 +493,7 @@ const checkURLChange = () => {
   if (prevURL !== location.href) {
     const urlChangeMessage: BackgroundMessage = {
       type: "urlChange",
-      url: getURL(),
+      url: getCanonicalURL(),
       prevInjectionData,
     };
     chrome.runtime.sendMessage(urlChangeMessage);

@@ -1,12 +1,13 @@
 import * as esbuild from "esbuild";
 
 await Promise.all(
-  [{ entryPoints: ["src/index.ts"], outfile: "dist/index.js" }].map((options) =>
+  [{ entryPoints: ["src/build.ts"], outfile: "dist/build.js" }].map((options) =>
     esbuild.build({
       ...options,
       bundle: true,
-      platform: "node",
+      external: ["esbuild"],
       format: "esm",
+      platform: "node",
     })
   )
 );
