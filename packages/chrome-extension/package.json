@@ -2,8 +2,9 @@
   "name": "chrome-extension",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "build": "node --env-file=.env build.mjs",
+    "build": "node --env-file=.env build.js",
     "test": "tsc --noEmit"
   },
   "devDependencies": {

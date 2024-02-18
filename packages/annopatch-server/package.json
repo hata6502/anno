@@ -2,9 +2,10 @@
   "name": "annopatch-server",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/index.mjs",
+  "type": "module",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "node build.mjs",
+    "build": "node build.js",
     "start": "functions-framework --target index",
     "test": "tsc --noEmit"
   },
