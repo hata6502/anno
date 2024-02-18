@@ -1,4 +1,9 @@
-import { extractAnnolink, fetchAnnopages, isAnnolink } from "scrapbox-loader";
+import {
+  Annopage,
+  extractAnnolink,
+  fetchAnnopages,
+  isAnnolink,
+} from "scrapbox-loader";
 
 /*const fetchPages = async ({
   annoProjectName,
@@ -29,18 +34,15 @@ const annolinks = [
 ].filter(isAnnolink);
 console.log("Number of annolinks: ", annolinks.length);
 
-const annopages = new Map();
+const annopageEntries: [string, Annopage[]][] = [];
 for (const [annolinkIndex, annolink] of annolinks.entries()) {
   console.log(annolinkIndex + 1, annolink);
 
-  const annopageEntries = await fetchAnnopages({
+  const annopages = await fetchAnnopages({
     annoProjectName,
     annolink,
     fetcher: fetch,
   });
-  annopages.set(
-    annolink,
-    annopageEntries.map(([, annopage]) => annopage)
-  );
+  annopageEntries.push([annolink, annopages.map(([, annopage]) => annopage)]);
 }
-console.log(JSON.stringify(Object.fromEntries(annopages)));
+console.log(JSON.stringify(Object.fromEntries(annopageEntries)));
