@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "node build.js",
+    "gcp-build": "",
     "start": "functions-framework --target index",
     "test": "tsc --noEmit"
   },
