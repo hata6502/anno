@@ -41,8 +41,7 @@ await Promise.all(
     esbuild.build({
       ...options,
       bundle: true,
-      define: { ANNOPAGES: JSON.stringify(annopages) },
-      format: "esm",
+      define: { ANNOPAGES: JSON.stringify(annopages) }
     })
   )
 );
