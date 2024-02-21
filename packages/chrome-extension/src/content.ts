@@ -120,7 +120,7 @@ const mark = async () => {
         (descriptionElement instanceof window.HTMLMetaElement &&
           descriptionElement.content);
       if (description) {
-        headerLines.push(...description.split("\n"));
+        headerLines.push(...description.split("\n").map((line) => `> ${line}`));
       }
 
       const keywordsElement = window.document.querySelector(
