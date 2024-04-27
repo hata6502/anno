@@ -49,6 +49,7 @@ styleElement.textContent = `
         position: absolute;
         color: transparent;
         cursor: auto;
+        font-family: monospace;
         white-space: pre;
 
         &.horizontal {
@@ -60,7 +61,8 @@ styleElement.textContent = `
         }
 
         &::selection {
-          background: rgb(0, 0, 255, 0.25);
+          background: #ccccff;
+          color: #000000;
         }
       }
 
@@ -182,8 +184,7 @@ const Overlayer: FunctionComponent = () => {
                         ? bStyle.top - aStyle.top
                         : aStyle.left +
                           aStyle.width -
-                          (bStyle.left + bStyle.width)) /
-                        (aStyle.size * 1.75)
+                          (bStyle.left + bStyle.width)) / aStyle.size
                     )
                   ),
                   2
@@ -203,15 +204,6 @@ const Overlayer: FunctionComponent = () => {
                     2
                   );
                 }
-              }
-
-              for (const annotation of annotations) {
-                const style = getStyle(annotation);
-
-                annotation.minX -= style.size / 4;
-                annotation.minY -= style.size / 4;
-                annotation.maxX += style.size / 4;
-                annotation.maxY += style.size / 4;
               }
 
               return { annotations, scale: json.scale };
@@ -278,7 +270,7 @@ const Overlayer: FunctionComponent = () => {
 
   return handleResult.annotations.map((annotation, annotationIndex) => (
     <GyannoText
-      key={annotationIndex}
+      key={`${annotationIndex}-${imageViewerRect.width}-${imageViewerRect.height}-${handleResult.scale.width}-${handleResult.scale.height}`}
       annotation={annotation}
       imageViewerRect={imageViewerRect}
       scale={handleResult.scale}
@@ -296,7 +288,9 @@ const GyannoText: FunctionComponent<{
   const width = (style.width / scale.width) * imageViewerRect.width;
   const height = (style.height / scale.height) * imageViewerRect.height;
   const segmentLength = annotation.segments.length;
+  const defaultFontSize = Math.min(width, height);
 
+  const [fontSize, setFontSize] = useState(defaultFontSize);
   const [letterSpacing, setLetterSpacing] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
 
@@ -304,15 +298,13 @@ const GyannoText: FunctionComponent<{
     if (!ref.current) {
       return;
     }
-
     const textRect = ref.current.getBoundingClientRect();
-    setLetterSpacing((prevLetterSpacing) => {
-      const expected = Math.max(width, height);
-      const actual =
-        Math.max(textRect.width, textRect.height) -
-        prevLetterSpacing * segmentLength;
-      return (expected - actual) / segmentLength;
-    });
+    const expected = Math.max(width, height);
+    const actual = Math.max(textRect.width, textRect.height);
+
+    const letterSpacing = (expected - actual) / segmentLength;
+    setFontSize(defaultFontSize + Math.min(letterSpacing, 0));
+    setLetterSpacing(Math.max(letterSpacing, 0));
   }, [height, segmentLength, width]);
 
   return (
@@ -326,7 +318,7 @@ const GyannoText: FunctionComponent<{
           (1 - (style.left + style.width) / scale.width) *
           imageViewerRect.width,
         top: (style.top / scale.height) * imageViewerRect.height,
-        fontSize: Math.min(width, height),
+        fontSize,
         letterSpacing,
       }}
     >
