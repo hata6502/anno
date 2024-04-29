@@ -48,7 +48,8 @@ styleElement.textContent = `
         position: absolute;
         color: transparent;
         cursor: auto;
-        font-family: monospace;
+        font-family: sans-serif;
+        user-select: text;
         white-space: pre;
 
         &.horizontal {
@@ -70,7 +71,7 @@ styleElement.textContent = `
 
       &.selection {
         position: absolute;
-        background: #ccccff;
+        background: #ddddff;
       }
     }
   }
@@ -116,6 +117,26 @@ const Overlayer: FunctionComponent = () => {
 
   useEffect(() => {
     const handle = async () => {
+      const imageBoxElement = document.querySelector(".image-box-component");
+      if (!(imageBoxElement instanceof HTMLElement)) {
+        return;
+      }
+
+      if (selection.containsNode(selectAllDetectorElement, true)) {
+        selection.removeAllRanges();
+        const range = new Range();
+        range.selectNode(overlayerElement);
+        selection.addRange(range);
+      }
+
+      imageBoxElement.style.pointerEvents = selection.isCollapsed ? "" : "none";
+
+      const containsOverlayer = selection.containsNode(overlayerElement, true);
+      document.body.style.userSelect = containsOverlayer ? "none" : "";
+      setSelectionRects(
+        containsOverlayer ? [...selection.getRangeAt(0).getClientRects()] : []
+      );
+
       setHandleResult(
         await (() => {
           const match = location.pathname.match(/^\/([0-9a-z]{32})$/);
@@ -252,32 +273,12 @@ const Overlayer: FunctionComponent = () => {
     const resizeObserver = new ResizeObserver(handle);
     resizeObserver.observe(document.body);
 
-    const handleSelectionChange = () => {
-      const imageBoxElement = document.querySelector(".image-box-component");
-      if (!(imageBoxElement instanceof HTMLElement)) {
-        return;
-      }
-
-      if (selection.containsNode(selectAllDetectorElement, true)) {
-        selection.removeAllRanges();
-        const range = new Range();
-        range.selectNode(overlayerElement);
-        selection.addRange(range);
-      }
-
-      imageBoxElement.style.pointerEvents = selection.isCollapsed ? "" : "none";
-
-      const selectionRects = selection.containsNode(overlayerElement, true)
-        ? [...selection.getRangeAt(0).getClientRects()]
-        : [];
-      setSelectionRects(selectionRects);
-    };
-    document.addEventListener("selectionchange", handleSelectionChange);
+    document.addEventListener("selectionchange", handle);
 
     return () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
-      document.removeEventListener("selectionchange", handleSelectionChange);
+      document.removeEventListener("selectionchange", handle);
     };
   }, []);
 
@@ -307,18 +308,21 @@ const Overlayer: FunctionComponent = () => {
 
   return (
     <>
-      {selectionRects.map((selectionRect, selectionIndex) => (
-        <div
-          key={selectionIndex}
-          className="gyanno selection"
-          style={{
-            right: imageViewerRect.right - selectionRect.right,
-            top: selectionRect.top - imageViewerRect.top,
-            width: selectionRect.width,
-            height: selectionRect.height,
-          }}
-        />
-      ))}
+      {selectionRects.map((selectionRect, selectionIndex) => {
+        const padding = Math.min(selectionRect.width, selectionRect.height) / 4;
+        return (
+          <div
+            key={selectionIndex}
+            className="gyanno selection"
+            style={{
+              right: imageViewerRect.right - selectionRect.right - padding,
+              top: selectionRect.top - imageViewerRect.top - padding,
+              width: selectionRect.width + padding * 2,
+              height: selectionRect.height + padding * 2,
+            }}
+          />
+        );
+      })}
 
       {handleResult.annotations.map((annotation, annotationIndex) => (
         <GyannoText
@@ -341,11 +345,15 @@ const GyannoText: FunctionComponent<{
   const style = getStyle(annotation);
   const width = (style.width / scale.width) * imageViewerRect.width;
   const height = (style.height / scale.height) * imageViewerRect.height;
+
+  const expected = Math.max(width, height);
   const segmentLength = annotation.segments.length;
   const defaultFontSize = Math.min(width, height);
+  const defaultLetterSpacing = defaultFontSize / 12;
 
   const [fontSize, setFontSize] = useState(defaultFontSize);
-  const [letterSpacing, setLetterSpacing] = useState(0);
+  const [letterSpacing, setLetterSpacing] = useState(defaultLetterSpacing);
+
   const ref = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -353,13 +361,14 @@ const GyannoText: FunctionComponent<{
       return;
     }
     const textRect = ref.current.getBoundingClientRect();
-    const expected = Math.max(width, height);
     const actual = Math.max(textRect.width, textRect.height);
 
     const letterSpacing = (expected - actual) / segmentLength;
-    setFontSize(defaultFontSize + Math.min(letterSpacing, 0));
-    setLetterSpacing(Math.max(letterSpacing, 0));
-  }, [height, segmentLength, width]);
+    setFontSize(
+      defaultFontSize + Math.min(letterSpacing, defaultLetterSpacing)
+    );
+    setLetterSpacing(Math.max(letterSpacing, defaultLetterSpacing));
+  }, [defaultFontSize, defaultLetterSpacing, expected, segmentLength]);
 
   return (
     <span
