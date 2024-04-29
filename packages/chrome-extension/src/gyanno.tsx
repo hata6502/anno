@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 
 interface Annotation {
   segments: string[];
-  paddingCount: number;
   breakCount: number;
   minX: number;
   minY: number;
@@ -146,7 +145,6 @@ const Overlayer: FunctionComponent = () => {
                       segments: [
                         ...new Intl.Segmenter().segment(description),
                       ].map((segment) => segment.segment),
-                      paddingCount: 0,
                       breakCount: 0,
                       minX: Math.min(...xs),
                       minY: Math.min(...ys),
@@ -177,8 +175,8 @@ const Overlayer: FunctionComponent = () => {
                 const aStyle = getStyle(a);
                 const bStyle = getStyle(b);
 
-                const breakCount = Math.min(
-                  Math.floor(
+                a.breakCount = Math.min(
+                  Math.round(
                     Math.abs(
                       (aStyle.isHorizontal
                         ? bStyle.top - aStyle.top
@@ -189,20 +187,24 @@ const Overlayer: FunctionComponent = () => {
                   ),
                   2
                 );
-                a.breakCount = breakCount;
 
-                if (!breakCount) {
-                  a.paddingCount = Math.min(
-                    Math.floor(
-                      Math.abs(
-                        (aStyle.isHorizontal
-                          ? bStyle.left - (aStyle.left + aStyle.width)
-                          : bStyle.top - (aStyle.top + aStyle.height)) /
-                          aStyle.size
-                      )
-                    ),
-                    2
+                if (!a.breakCount) {
+                  const halfWidthSize = aStyle.size / 2;
+                  const paddingCount = Math.round(
+                    (aStyle.isHorizontal
+                      ? bStyle.left - (aStyle.left + aStyle.width)
+                      : bStyle.top - (aStyle.top + aStyle.height)) /
+                      halfWidthSize
                   );
+
+                  if (paddingCount >= 0 && paddingCount < 3) {
+                    a.segments.push(" ".repeat(paddingCount));
+                    if (aStyle.isHorizontal) {
+                      a.maxX = b.minX;
+                    } else {
+                      a.maxY = b.minY;
+                    }
+                  }
                 }
               }
 
@@ -323,7 +325,6 @@ const GyannoText: FunctionComponent<{
       }}
     >
       {annotation.segments.join("")}
-      {" ".repeat(annotation.paddingCount)}
 
       {[...Array(annotation.breakCount).keys()].map((breakIndex) => (
         <br key={breakIndex} className="gyanno break" />
@@ -373,7 +374,6 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
       ...(getIsIntersected(0.25) ? [] : [" "]),
       ...b.segments,
     ],
-    paddingCount: 0,
     breakCount: 0,
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
