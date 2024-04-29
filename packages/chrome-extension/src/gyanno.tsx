@@ -41,7 +41,7 @@ styleElement.textContent = `
     .gyanno {
       &.overlayer {
         position: absolute;
-        user-select: text;
+        pointer-events: auto;
       }
 
       &.text {
@@ -60,7 +60,6 @@ styleElement.textContent = `
         }
 
         &::selection {
-          background: #ccccff;
           color: #000000;
         }
       }
@@ -68,32 +67,44 @@ styleElement.textContent = `
       &.break {
         visibility: hidden;
       }
+
+      &.selection {
+        position: absolute;
+        background: #ccccff;
+      }
+    }
+  }
+
+  .select-all-detector {
+    position: absolute;
+
+    &::after {
+      content: "\\200b";
     }
   }
 `;
 document.head.append(styleElement);
-
-const cache = new Map<
-  string,
-  Promise<{ annotations: Annotation[]; scale: Scale } | undefined>
->();
 
 const selection = getSelection();
 if (!selection) {
   throw new Error("No selection");
 }
 
-document.addEventListener("selectionchange", () => {
-  const containsOverlayer = selection.containsNode(overlayerElement, true);
-  document.body.style.userSelect = containsOverlayer ? "none" : "";
-});
+const cache = new Map<
+  string,
+  Promise<{ annotations: Annotation[]; scale: Scale } | undefined>
+>();
 
 const overlayerElement = document.createElement("div");
 overlayerElement.classList.add("gyanno", "overlayer");
 overlayerElement.addEventListener("click", (event) => {
-  // Prevent zooming out.
+  // Prevent zooming out
   event.stopPropagation();
 });
+
+const selectAllDetectorElement = document.createElement("div");
+selectAllDetectorElement.classList.add("select-all-detector");
+document.body.append(selectAllDetectorElement);
 
 const Overlayer: FunctionComponent = () => {
   const [handleResult, setHandleResult] = useState<{
@@ -101,6 +112,7 @@ const Overlayer: FunctionComponent = () => {
     scale: Scale;
   }>();
   const [, setRenderCount] = useState(0);
+  const [selectionRects, setSelectionRects] = useState<DOMRect[]>([]);
 
   useEffect(() => {
     const handle = async () => {
@@ -240,9 +252,32 @@ const Overlayer: FunctionComponent = () => {
     const resizeObserver = new ResizeObserver(handle);
     resizeObserver.observe(document.body);
 
+    const handleSelectionChange = () => {
+      const imageBoxElement = document.querySelector(".image-box-component");
+      if (!(imageBoxElement instanceof HTMLElement)) {
+        return;
+      }
+
+      if (selection.containsNode(selectAllDetectorElement, true)) {
+        selection.removeAllRanges();
+        const range = new Range();
+        range.selectNode(overlayerElement);
+        selection.addRange(range);
+      }
+
+      imageBoxElement.style.pointerEvents = selection.isCollapsed ? "" : "none";
+
+      const selectionRects = selection.containsNode(overlayerElement, true)
+        ? [...selection.getRangeAt(0).getClientRects()]
+        : [];
+      setSelectionRects(selectionRects);
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+
     return () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
+      document.removeEventListener("selectionchange", handleSelectionChange);
     };
   }, []);
 
@@ -270,14 +305,31 @@ const Overlayer: FunctionComponent = () => {
     imageBoxElement.append(overlayerElement);
   }
 
-  return handleResult.annotations.map((annotation, annotationIndex) => (
-    <GyannoText
-      key={`${annotationIndex}-${imageViewerRect.width}-${imageViewerRect.height}-${handleResult.scale.width}-${handleResult.scale.height}`}
-      annotation={annotation}
-      imageViewerRect={imageViewerRect}
-      scale={handleResult.scale}
-    />
-  ));
+  return (
+    <>
+      {selectionRects.map((selectionRect, selectionIndex) => (
+        <div
+          key={selectionIndex}
+          className="gyanno selection"
+          style={{
+            right: imageViewerRect.right - selectionRect.right,
+            top: selectionRect.top - imageViewerRect.top,
+            width: selectionRect.width,
+            height: selectionRect.height,
+          }}
+        />
+      ))}
+
+      {handleResult.annotations.map((annotation, annotationIndex) => (
+        <GyannoText
+          key={`${annotationIndex}-${imageViewerRect.width}-${imageViewerRect.height}-${handleResult.scale.width}-${handleResult.scale.height}`}
+          annotation={annotation}
+          imageViewerRect={imageViewerRect}
+          scale={handleResult.scale}
+        />
+      ))}
+    </>
+  );
 };
 createRoot(overlayerElement).render(<Overlayer />);
 
