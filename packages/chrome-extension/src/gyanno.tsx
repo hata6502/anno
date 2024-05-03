@@ -61,17 +61,13 @@ styleElement.textContent = `
         }
 
         &::selection {
+          background: #ddddff;
           color: #000000;
         }
       }
 
       &.break {
         visibility: hidden;
-      }
-
-      &.selection {
-        position: absolute;
-        background: #ddddff;
       }
     }
   }
@@ -113,7 +109,6 @@ const Overlayer: FunctionComponent = () => {
     scale: Scale;
   }>();
   const [, setRenderCount] = useState(0);
-  const [selectionRects, setSelectionRects] = useState<DOMRect[]>([]);
 
   useEffect(() => {
     const handle = async () => {
@@ -133,9 +128,6 @@ const Overlayer: FunctionComponent = () => {
 
       const containsOverlayer = selection.containsNode(overlayerElement, true);
       document.body.style.userSelect = containsOverlayer ? "none" : "";
-      setSelectionRects(
-        containsOverlayer ? [...selection.getRangeAt(0).getClientRects()] : []
-      );
 
       setHandleResult(
         await (() => {
@@ -308,22 +300,6 @@ const Overlayer: FunctionComponent = () => {
 
   return (
     <>
-      {selectionRects.map((selectionRect, selectionIndex) => {
-        const padding = Math.min(selectionRect.width, selectionRect.height) / 4;
-        return (
-          <div
-            key={selectionIndex}
-            className="gyanno selection"
-            style={{
-              right: imageViewerRect.right - selectionRect.right - padding,
-              top: selectionRect.top - imageViewerRect.top - padding,
-              width: selectionRect.width + padding * 2,
-              height: selectionRect.height + padding * 2,
-            }}
-          />
-        );
-      })}
-
       {handleResult.annotations.map((annotation, annotationIndex) => (
         <GyannoText
           key={`${annotationIndex}-${imageViewerRect.width}-${imageViewerRect.height}-${handleResult.scale.width}-${handleResult.scale.height}`}
@@ -349,7 +325,7 @@ const GyannoText: FunctionComponent<{
   const expected = Math.max(width, height);
   const segmentLength = annotation.segments.length;
   const defaultFontSize = Math.min(width, height);
-  const defaultLetterSpacing = defaultFontSize / 12;
+  const defaultLetterSpacing = 0;
 
   const [fontSize, setFontSize] = useState(defaultFontSize);
   const [letterSpacing, setLetterSpacing] = useState(defaultLetterSpacing);
