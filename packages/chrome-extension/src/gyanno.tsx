@@ -2,7 +2,7 @@ import { FunctionComponent, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 interface Annotation {
-  segments: string[];
+  description: string;
   breakCount: number;
   minX: number;
   minY: number;
@@ -60,8 +60,14 @@ styleElement.textContent = `
           writing-mode: vertical-rl;
         }
 
-        &::selection {
-          background: #ddddff;
+        &:hover {
+          background: #ffffff;
+          outline: 2px solid #cceeff;
+          color: #000000;
+        }
+
+        &::selection, & *::selection {
+          background: #cceeff;
           color: #000000;
         }
       }
@@ -167,9 +173,7 @@ const Overlayer: FunctionComponent = () => {
                     const ys = boundingPoly.vertices.map(({ y }) => y ?? 0);
 
                     return {
-                      segments: [
-                        ...new Intl.Segmenter().segment(description),
-                      ].map((segment) => segment.segment),
+                      description,
                       breakCount: 0,
                       minX: Math.min(...xs),
                       minY: Math.min(...ys),
@@ -223,7 +227,9 @@ const Overlayer: FunctionComponent = () => {
                   );
 
                   if (paddingCount >= 0 && paddingCount < 3) {
-                    a.segments.push(" ".repeat(paddingCount));
+                    a.description = `${a.description}${" ".repeat(
+                      paddingCount
+                    )}`;
                     if (aStyle.isHorizontal) {
                       a.maxX = b.minX;
                     } else {
@@ -302,7 +308,7 @@ const Overlayer: FunctionComponent = () => {
     <>
       {handleResult.annotations.map((annotation, annotationIndex) => (
         <GyannoText
-          key={`${annotationIndex}-${imageViewerRect.width}-${imageViewerRect.height}-${handleResult.scale.width}-${handleResult.scale.height}`}
+          key={annotationIndex}
           annotation={annotation}
           imageViewerRect={imageViewerRect}
           scale={handleResult.scale}
@@ -323,12 +329,10 @@ const GyannoText: FunctionComponent<{
   const height = (style.height / scale.height) * imageViewerRect.height;
 
   const expected = Math.max(width, height);
-  const segmentLength = annotation.segments.length;
   const defaultFontSize = Math.min(width, height);
-  const defaultLetterSpacing = 0;
 
   const [fontSize, setFontSize] = useState(defaultFontSize);
-  const [letterSpacing, setLetterSpacing] = useState(defaultLetterSpacing);
+  const [letterSpacing, setLetterSpacing] = useState(0);
 
   const ref = useRef<HTMLSpanElement>(null);
 
@@ -336,15 +340,33 @@ const GyannoText: FunctionComponent<{
     if (!ref.current) {
       return;
     }
-    const textRect = ref.current.getBoundingClientRect();
-    const actual = Math.max(textRect.width, textRect.height);
+    const element = ref.current;
 
-    const letterSpacing = (expected - actual) / segmentLength;
-    setFontSize(
-      defaultFontSize + Math.min(letterSpacing, defaultLetterSpacing)
-    );
-    setLetterSpacing(Math.max(letterSpacing, defaultLetterSpacing));
-  }, [defaultFontSize, defaultLetterSpacing, expected, segmentLength]);
+    const adjust = () => {
+      element.style.fontSize = `${defaultFontSize}px`;
+      element.style.letterSpacing = "0";
+
+      const segments = [
+        ...new Intl.Segmenter().segment(element.textContent ?? ""),
+      ].map((segment) => segment.segment);
+      const textRect = element.getBoundingClientRect();
+      const actual = Math.max(textRect.width, textRect.height);
+
+      const letterSpacing = (expected - actual) / segments.length;
+      setFontSize(defaultFontSize + Math.min(letterSpacing, 0));
+      setLetterSpacing(Math.max(letterSpacing, 0));
+    };
+    adjust();
+
+    const mutationObserver = new MutationObserver(adjust);
+    mutationObserver.observe(element, {
+      subtree: true,
+      characterData: true,
+    });
+    return () => {
+      mutationObserver.disconnect();
+    };
+  }, [defaultFontSize, expected]);
 
   return (
     <span
@@ -361,7 +383,7 @@ const GyannoText: FunctionComponent<{
         letterSpacing,
       }}
     >
-      {annotation.segments.join("")}
+      {annotation.description}
 
       {[...Array(annotation.breakCount).keys()].map((breakIndex) => (
         <br key={breakIndex} className="gyanno break" />
@@ -370,10 +392,10 @@ const GyannoText: FunctionComponent<{
   );
 };
 
-const getStyle = ({ segments, minX, minY, maxX, maxY }: Annotation) => {
+const getStyle = ({ description, minX, minY, maxX, maxY }: Annotation) => {
   let width = maxX - minX;
   let height = maxY - minY;
-  if (segments.length === 1) {
+  if (description.length < 2) {
     width = height = Math.max(width, height);
   }
 
@@ -400,17 +422,12 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
       aStyle.left - aStyle.size * margin &&
     bStyle.top + bStyle.height + bStyle.size * margin >=
       aStyle.top - aStyle.size * margin;
-
   if (!getIsIntersected(0.5)) {
     return;
   }
 
   const neighbor = {
-    segments: [
-      ...a.segments,
-      ...(getIsIntersected(0.25) ? [] : [" "]),
-      ...b.segments,
-    ],
+    description: `${a.description} ${b.description}`,
     breakCount: 0,
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
