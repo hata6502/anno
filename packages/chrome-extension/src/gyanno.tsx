@@ -60,12 +60,6 @@ styleElement.textContent = `
           writing-mode: vertical-rl;
         }
 
-        &:hover {
-          background: #ffffff;
-          outline: 2px solid #cceeff;
-          color: #000000;
-        }
-
         &::selection, & *::selection {
           background: #cceeff;
           color: #000000;
@@ -329,11 +323,9 @@ const GyannoText: FunctionComponent<{
   const height = (style.height / scale.height) * imageViewerRect.height;
 
   const expected = Math.max(width, height);
-  const defaultFontSize = Math.min(width, height);
+  const fontSize = Math.min(width, height) * 0.75;
 
-  const [fontSize, setFontSize] = useState(defaultFontSize);
   const [letterSpacing, setLetterSpacing] = useState(0);
-
   const ref = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -343,18 +335,13 @@ const GyannoText: FunctionComponent<{
     const element = ref.current;
 
     const adjust = () => {
-      element.style.fontSize = `${defaultFontSize}px`;
       element.style.letterSpacing = "0";
-
+      const textRect = element.getBoundingClientRect();
+      const actual = Math.max(textRect.width, textRect.height);
       const segments = [
         ...new Intl.Segmenter().segment(element.textContent ?? ""),
       ].map((segment) => segment.segment);
-      const textRect = element.getBoundingClientRect();
-      const actual = Math.max(textRect.width, textRect.height);
-
-      const letterSpacing = (expected - actual) / segments.length;
-      setFontSize(defaultFontSize + Math.min(letterSpacing, 0));
-      setLetterSpacing(Math.max(letterSpacing, 0));
+      setLetterSpacing((expected - actual) / segments.length);
     };
     adjust();
 
@@ -366,7 +353,7 @@ const GyannoText: FunctionComponent<{
     return () => {
       mutationObserver.disconnect();
     };
-  }, [defaultFontSize, expected]);
+  }, [expected]);
 
   return (
     <span
@@ -427,7 +414,9 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
   }
 
   const neighbor = {
-    description: `${a.description} ${b.description}`,
+    description: `${a.description}${getIsIntersected(0.125) ? "" : " "}${
+      b.description
+    }`,
     breakCount: 0,
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
