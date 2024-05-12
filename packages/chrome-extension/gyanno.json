@@ -1,0 +1,10 @@
+{
+  "name": "gyanno",
+  "version": "6.0.16",
+  "manifest_version": 3,
+  "description": "Select text with Gyazo. ",
+  "content_scripts": [
+    { "matches": ["https://*.gyazo.com/*"], "js": ["dist/gyanno.js"] }
+  ],
+  "icons": { "128": "gyanno.png" }
+}

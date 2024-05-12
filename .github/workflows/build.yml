@@ -15,7 +15,13 @@ jobs:
       - run: npm run -w packages/chrome-extension build
         env:
           EXTENSION_ID: ${{ vars.EXTENSION_ID }}
+
       - uses: actions/upload-artifact@v3
         with:
-          name: chrome-extension
+          name: anno
+          path: packages/chrome-extension
+      - run: cp packages/chrome-extension/gyanno.json packages/chrome-extension/manifest.json
+      - uses: actions/upload-artifact@v3
+        with:
+          name: gyanno
           path: packages/chrome-extension
