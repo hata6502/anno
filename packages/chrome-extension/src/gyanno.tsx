@@ -1,8 +1,11 @@
 import { FunctionComponent, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+/** OCRによって検出された矩形領域 */
 interface Annotation {
+  /** 書かれているテキスト */
   description: string;
+  /** 次のAnnotationと何行分の空白があるか */
   breakCount: number;
   minX: number;
   minY: number;
@@ -18,6 +21,7 @@ interface Scale {
 const styleElement = document.createElement("style");
 styleElement.textContent = `
   .image-box-component {
+    /* annoで置いたアイコンやマーカー向けの調整 */
     .anno {
       &.icon {
         position: absolute;
@@ -60,6 +64,10 @@ styleElement.textContent = `
           writing-mode: vertical-rl;
         }
 
+        /*
+         * Chrome内蔵の翻訳機能を使うと、<font>タグが入ったりする
+         * "& *::selection"と書けば、翻訳機能を使ってもスタイルが当たる
+         */
         &::selection, & *::selection {
           background: #cceeff;
           color: #000000;
@@ -95,10 +103,11 @@ const cache = new Map<
 const overlayerElement = document.createElement("div");
 overlayerElement.classList.add("gyanno", "overlayer");
 overlayerElement.addEventListener("click", (event) => {
-  // Prevent zooming out
+  // テキスト選択と画像拡大の操作が干渉しないようにする
   event.stopPropagation();
 });
 
+// https://dev.to/chromiumdev/detecting-select-all-on-the-web-2alo
 const selectAllDetectorElement = document.createElement("div");
 selectAllDetectorElement.classList.add("select-all-detector");
 document.body.append(selectAllDetectorElement);
@@ -177,6 +186,8 @@ const Overlayer: FunctionComponent = () => {
                   }
                 );
 
+              // Annotationが細分化されていると、テキスト選択の挙動が破滅しやすくなる気がする
+              // 隣接するAnnotationを結合して、Annotation数を減らす
               for (let aIndex = 0; aIndex < annotations.length - 1; aIndex++) {
                 const bIndex = aIndex + 1;
                 const a = annotations[aIndex];
@@ -208,29 +219,18 @@ const Overlayer: FunctionComponent = () => {
                           (bStyle.left + bStyle.width)) / aStyle.size
                     )
                   ),
+                  // テキストを全選択してコピペすると、
+                  //
+                  //
+                  //
+                  //
+                  //
+                  // 長大な改行が入ることがあった
+                  // 改行は最大2行までに
+                  //
+                  // 制限する
                   2
                 );
-
-                if (!a.breakCount) {
-                  const halfWidthSize = aStyle.size / 2;
-                  const paddingCount = Math.round(
-                    (aStyle.isHorizontal
-                      ? bStyle.left - (aStyle.left + aStyle.width)
-                      : bStyle.top - (aStyle.top + aStyle.height)) /
-                      halfWidthSize
-                  );
-
-                  if (paddingCount >= 0 && paddingCount < 3) {
-                    a.description = `${a.description}${" ".repeat(
-                      paddingCount
-                    )}`;
-                    if (aStyle.isHorizontal) {
-                      a.maxX = b.minX;
-                    } else {
-                      a.maxY = b.minY;
-                    }
-                  }
-                }
               }
 
               return { annotations, scale: json.scale };
@@ -323,7 +323,7 @@ const GyannoText: FunctionComponent<{
   const height = (style.height / scale.height) * imageViewerRect.height;
 
   const expected = Math.max(width, height);
-  const fontSize = Math.min(width, height) * 0.75;
+  const fontSize = Math.min(width, height);
 
   const [letterSpacing, setLetterSpacing] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
@@ -345,6 +345,7 @@ const GyannoText: FunctionComponent<{
     };
     adjust();
 
+    // Chrome内蔵の翻訳機能によるテキスト変更を検知する
     const mutationObserver = new MutationObserver(adjust);
     mutationObserver.observe(element, {
       subtree: true,
@@ -373,6 +374,7 @@ const GyannoText: FunctionComponent<{
       {annotation.description}
 
       {[...Array(annotation.breakCount).keys()].map((breakIndex) => (
+        // 見えない<br>を置くと、テキスト選択してコピペしたときに改行が入る
         <br key={breakIndex} className="gyanno break" />
       ))}
     </span>
@@ -382,6 +384,8 @@ const GyannoText: FunctionComponent<{
 const getStyle = ({ description, minX, minY, maxX, maxY }: Annotation) => {
   let width = maxX - minX;
   let height = maxY - minY;
+  // 例えば「A」1文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
+  // 実際には横書きであることが多いため、1文字の場合は必ず横書きとして判定させる
   if (description.length < 2) {
     width = height = Math.max(width, height);
   }
