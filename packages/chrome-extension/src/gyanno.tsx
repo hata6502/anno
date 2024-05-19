@@ -1,11 +1,10 @@
-import { FunctionComponent, useEffect, useRef, useState } from "react";
+import clsx from "clsx";
+import { FunctionComponent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 /** OCRによって検出された矩形領域 */
 interface Annotation {
-  /** 書かれているテキスト */
-  description: string;
-  /** 次のAnnotationと何行分の空白があるか */
+  segments: string[];
   breakCount: number;
   minX: number;
   minY: number;
@@ -21,39 +20,47 @@ interface Scale {
 const styleElement = document.createElement("style");
 styleElement.textContent = `
   .image-box-component {
-    /* annoで置いたアイコンやマーカー向けの調整 */
-    .anno {
-      &.icon {
-        position: absolute;
-        opacity: 0.5;
-
-        &:active, &:focus, &:hover {
-          opacity: unset;
-        }
-      }
-
-      &.marker {
-        color: transparent;
-        opacity: 0.25;
-
-        &::selection {
-          background: rgb(0, 0, 128);
-        }
-      }
-    }
+    pointer-events: none;
 
     .gyanno {
       &.overlayer {
         position: absolute;
+        cursor: crosshair;
         pointer-events: auto;
+      }
+
+      &.segment {
+        &.selected {
+          background: #cceeff;
+          color: #000000;
+        }
+      }
+
+      &.selected-rect {
+        position: absolute;
+        border: 1px solid #ffffff;
+        cursor: grab;
+        font-size: 0;
+        outline: 1px dotted #000000;
+        outline-offset: -1px;
+        white-space: pre;
+    
+        &.grabbing {
+          cursor: grabbing;
+          user-select: none;
+        }
+    
+        &.selecting {
+          cursor: unset;
+          user-select: none;
+        }
       }
 
       &.text {
         position: absolute;
         color: transparent;
-        cursor: auto;
         font-family: sans-serif;
-        user-select: text;
+        user-select: none;
         white-space: pre;
 
         &.horizontal {
@@ -63,19 +70,6 @@ styleElement.textContent = `
         &.vertical {
           writing-mode: vertical-rl;
         }
-
-        /*
-         * Chrome内蔵の翻訳機能を使うと、<font>タグが入ったりする
-         * "& *::selection"と書けば、翻訳機能を使ってもスタイルが当たる
-         */
-        &::selection, & *::selection {
-          background: #cceeff;
-          color: #000000;
-        }
-      }
-
-      &.break {
-        visibility: hidden;
       }
     }
   }
@@ -119,24 +113,31 @@ const Overlayer: FunctionComponent = () => {
   }>();
   const [, setRenderCount] = useState(0);
 
+  const [grab, setGrab] = useState<[number, number]>();
+  const [selecting, setSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<[number, number]>();
+  const [selectionEnd, setSelectionEnd] = useState<[number, number]>();
+  const selectedRect = useMemo(
+    () =>
+      selectionStart &&
+      selectionEnd &&
+      ([
+        Math.min(selectionStart[0], selectionEnd[0]),
+        Math.min(selectionStart[1], selectionEnd[1]),
+        Math.max(selectionStart[0], selectionEnd[0]),
+        Math.max(selectionStart[1], selectionEnd[1]),
+      ] as const),
+    [selectionStart, selectionEnd]
+  );
+
+  const selectedRectRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handle = async () => {
       const imageBoxElement = document.querySelector(".image-box-component");
       if (!(imageBoxElement instanceof HTMLElement)) {
         return;
       }
-
-      if (selection.containsNode(selectAllDetectorElement, true)) {
-        selection.removeAllRanges();
-        const range = new Range();
-        range.selectNode(overlayerElement);
-        selection.addRange(range);
-      }
-
-      imageBoxElement.style.pointerEvents = selection.isCollapsed ? "" : "none";
-
-      const containsOverlayer = selection.containsNode(overlayerElement, true);
-      document.body.style.userSelect = containsOverlayer ? "none" : "";
 
       setHandleResult(
         await (() => {
@@ -166,27 +167,25 @@ const Overlayer: FunctionComponent = () => {
                 await new Promise((resolve) => setTimeout(resolve, 5000));
               }
 
-              const annotations: Annotation[] =
-                json.metadata.ocrAnnotations.map(
+              const annotations = (json.metadata.ocrAnnotations as any[]).map(
+                ({ description, boundingPoly }): Annotation => {
                   // @ts-expect-error
-                  ({ description, boundingPoly }) => {
-                    // @ts-expect-error
-                    const xs = boundingPoly.vertices.map(({ x }) => x ?? 0);
-                    // @ts-expect-error
-                    const ys = boundingPoly.vertices.map(({ y }) => y ?? 0);
+                  const xs = boundingPoly.vertices.map(({ x }) => x ?? 0);
+                  // @ts-expect-error
+                  const ys = boundingPoly.vertices.map(({ y }) => y ?? 0);
+                  return {
+                    segments: [
+                      ...new Intl.Segmenter().segment(description),
+                    ].map(({ segment }) => segment),
+                    breakCount: 0,
+                    minX: Math.min(...xs),
+                    minY: Math.min(...ys),
+                    maxX: Math.max(...xs),
+                    maxY: Math.max(...ys),
+                  };
+                }
+              );
 
-                    return {
-                      description,
-                      breakCount: 0,
-                      minX: Math.min(...xs),
-                      minY: Math.min(...ys),
-                      maxX: Math.max(...xs),
-                      maxY: Math.max(...ys),
-                    };
-                  }
-                );
-
-              // Annotationが細分化されていると、テキスト選択の挙動が破滅しやすくなる気がする
               // 隣接するAnnotationを結合して、Annotation数を減らす
               for (let aIndex = 0; aIndex < annotations.length - 1; aIndex++) {
                 const bIndex = aIndex + 1;
@@ -261,18 +260,142 @@ const Overlayer: FunctionComponent = () => {
       childList: true,
       characterData: true,
     });
-
     const resizeObserver = new ResizeObserver(handle);
     resizeObserver.observe(document.body);
 
-    document.addEventListener("selectionchange", handle);
+    const handleSelectionChange = () => {
+      if (selection.containsNode(selectAllDetectorElement, true)) {
+        const overlayerRect = overlayerElement.getBoundingClientRect();
+        setSelectionStart([0, 0]);
+        setSelectionEnd([overlayerRect.width, overlayerRect.height]);
+      }
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
 
     return () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
-      document.removeEventListener("selectionchange", handle);
+      document.removeEventListener("selectionchange", handleSelectionChange);
     };
   }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const overlayerRect = overlayerElement.getBoundingClientRect();
+      const x = event.clientX - overlayerRect.left;
+      const y = event.clientY - overlayerRect.top;
+
+      if (
+        selectedRect &&
+        selectedRect[0] <= x &&
+        x <= selectedRect[2] &&
+        selectedRect[1] <= y &&
+        y <= selectedRect[3]
+      ) {
+        setGrab([x, y]);
+        return;
+      }
+
+      setSelecting(true);
+      setSelectionStart([x, y]);
+      setSelectionEnd([x, y]);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const overlayerRect = overlayerElement.getBoundingClientRect();
+      const x = event.clientX - overlayerRect.left;
+      const y = event.clientY - overlayerRect.top;
+
+      if (grab && selectedRect) {
+        const deltaX = x - grab[0];
+        const deltaY = y - grab[1];
+        setSelectionStart([selectedRect[0] + deltaX, selectedRect[1] + deltaY]);
+        setSelectionEnd([selectedRect[2] + deltaX, selectedRect[3] + deltaY]);
+        setGrab([x, y]);
+      }
+
+      if (selecting) {
+        setSelectionEnd([x, y]);
+      }
+    };
+    document.addEventListener("pointermove", handlePointerMove);
+
+    const handlePointerUp = () => {
+      setGrab(undefined);
+      setSelecting(false);
+    };
+    document.addEventListener("pointerup", handlePointerUp);
+    document.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+      document.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [grab, selectedRect, selecting]);
+
+  useEffect(() => {
+    if (!handleResult || !selectedRectRef.current) {
+      return;
+    }
+
+    const selectedSegments = [];
+    const overlayerRect = overlayerElement.getBoundingClientRect();
+    for (const segmentElement of document.querySelectorAll(".gyanno.segment")) {
+      if (!(segmentElement instanceof HTMLElement)) {
+        continue;
+      }
+
+      const segmentRect = segmentElement.getBoundingClientRect();
+      const segmentCenterX =
+        segmentRect.left + segmentRect.width / 2 - overlayerRect.left;
+      const segmentCenterY =
+        segmentRect.top + segmentRect.height / 2 - overlayerRect.top;
+
+      if (
+        selectedRect &&
+        selectedRect[0] <= segmentCenterX &&
+        segmentCenterX <= selectedRect[2] &&
+        selectedRect[1] <= segmentCenterY &&
+        segmentCenterY <= selectedRect[3]
+      ) {
+        segmentElement.classList.add("selected");
+        selectedSegments.push({
+          annotationIndex: Number(segmentElement.dataset.annotationIndex),
+          text: segmentElement.textContent,
+        });
+      } else {
+        segmentElement.classList.remove("selected");
+      }
+    }
+
+    for (const annotationIndex of new Set(
+      selectedSegments.map(({ annotationIndex }) => annotationIndex)
+    )) {
+      const lastSelectedSegmentIndex = selectedSegments
+        .map(({ annotationIndex }) => annotationIndex)
+        .lastIndexOf(annotationIndex);
+
+      selectedSegments.splice(lastSelectedSegmentIndex + 1, 0, {
+        annotationIndex,
+        text: "\n".repeat(handleResult.annotations[annotationIndex].breakCount),
+      });
+    }
+
+    selectedRectRef.current.textContent = selectedSegments
+      .map(({ text }) => text)
+      .join("");
+    selection.removeAllRanges();
+    const range = document.createRange();
+    range.selectNodeContents(selectedRectRef.current);
+    selection.addRange(range);
+  }, [handleResult, selectedRect]);
 
   if (!handleResult) {
     return;
@@ -290,10 +413,10 @@ const Overlayer: FunctionComponent = () => {
   }
   const imageViewerRect = imageViewerElement.getBoundingClientRect();
 
-  overlayerElement.style.left = `${
-    imageViewerRect.right - imageBoxRect.left
-  }px`;
+  overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
   overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
+  overlayerElement.style.width = `${imageViewerRect.width}px`;
+  overlayerElement.style.height = `${imageViewerRect.height}px`;
   if (overlayerElement.parentNode !== imageBoxElement) {
     imageBoxElement.append(overlayerElement);
   }
@@ -304,10 +427,29 @@ const Overlayer: FunctionComponent = () => {
         <GyannoText
           key={annotationIndex}
           annotation={annotation}
+          annotationIndex={annotationIndex}
           imageViewerRect={imageViewerRect}
           scale={handleResult.scale}
         />
       ))}
+
+      {selectedRect && (
+        <div
+          ref={selectedRectRef}
+          className={clsx(
+            "gyanno",
+            "selected-rect",
+            grab && "grabbing",
+            selecting && "selecting"
+          )}
+          style={{
+            left: selectedRect[0],
+            top: selectedRect[1],
+            width: selectedRect[2] - selectedRect[0],
+            height: selectedRect[3] - selectedRect[1],
+          }}
+        />
+      )}
     </>
   );
 };
@@ -315,18 +457,20 @@ createRoot(overlayerElement).render(<Overlayer />);
 
 const GyannoText: FunctionComponent<{
   annotation: Annotation;
+  annotationIndex: number;
   imageViewerRect: DOMRect;
   scale: Scale;
-}> = ({ annotation, imageViewerRect, scale }) => {
+}> = ({ annotation, annotationIndex, imageViewerRect, scale }) => {
   const style = getStyle(annotation);
   const width = (style.width / scale.width) * imageViewerRect.width;
   const height = (style.height / scale.height) * imageViewerRect.height;
 
+  const defaultFontSize = Math.min(width, height);
   const expected = Math.max(width, height);
-  const fontSize = Math.min(width, height);
 
+  const [fontSize, setFontSize] = useState(defaultFontSize);
   const [letterSpacing, setLetterSpacing] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!ref.current) {
@@ -334,59 +478,70 @@ const GyannoText: FunctionComponent<{
     }
     const element = ref.current;
 
-    const adjust = () => {
+    // Chrome内蔵の翻訳機能によるテキスト変更を検知する
+    const mutationObserver = new MutationObserver(() => {
+      element.style.fontSize = `${defaultFontSize}px`;
       element.style.letterSpacing = "0";
       const textRect = element.getBoundingClientRect();
       const actual = Math.max(textRect.width, textRect.height);
-      const segments = [
-        ...new Intl.Segmenter().segment(element.textContent ?? ""),
-      ].map((segment) => segment.segment);
-      setLetterSpacing((expected - actual) / segments.length);
-    };
-    adjust();
 
-    // Chrome内蔵の翻訳機能によるテキスト変更を検知する
-    const mutationObserver = new MutationObserver(adjust);
+      const letterSpacing = (expected - actual) / annotation.segments.length;
+      setLetterSpacing(Math.max(letterSpacing, 0));
+      setFontSize(defaultFontSize + Math.min(letterSpacing, 0));
+    });
     mutationObserver.observe(element, {
       subtree: true,
+      childList: true,
       characterData: true,
     });
     return () => {
       mutationObserver.disconnect();
     };
-  }, [expected]);
+  }, [annotation, defaultFontSize, expected]);
+
+  useEffect(() => {
+    if (!ref.current) {
+      return;
+    }
+    const element = ref.current;
+
+    for (const segment of annotation.segments) {
+      const spanElement = document.createElement("span");
+      spanElement.classList.add("gyanno", "segment");
+      spanElement.dataset.annotationIndex = String(annotationIndex);
+      spanElement.textContent = segment;
+      element.append(spanElement);
+    }
+
+    return () => {
+      element.textContent = "";
+    };
+  }, [annotation, annotationIndex]);
 
   return (
-    <span
+    <div
       ref={ref}
-      className={`gyanno text ${
+      className={clsx(
+        "gyanno",
+        "text",
         style.isHorizontal ? "horizontal" : "vertical"
-      }`}
+      )}
       style={{
-        right:
-          (1 - (style.left + style.width) / scale.width) *
-          imageViewerRect.width,
+        left: (style.left / scale.width) * imageViewerRect.width,
         top: (style.top / scale.height) * imageViewerRect.height,
         fontSize,
         letterSpacing,
       }}
-    >
-      {annotation.description}
-
-      {[...Array(annotation.breakCount).keys()].map((breakIndex) => (
-        // 見えない<br>を置くと、テキスト選択してコピペしたときに改行が入る
-        <br key={breakIndex} className="gyanno break" />
-      ))}
-    </span>
+    />
   );
 };
 
-const getStyle = ({ description, minX, minY, maxX, maxY }: Annotation) => {
+const getStyle = ({ segments, minX, minY, maxX, maxY }: Annotation) => {
   let width = maxX - minX;
   let height = maxY - minY;
   // 例えば「A」1文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
   // 実際には横書きであることが多いため、1文字の場合は必ず横書きとして判定させる
-  if (description.length < 2) {
+  if (segments.length < 2) {
     width = height = Math.max(width, height);
   }
 
@@ -417,11 +572,13 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
     return;
   }
 
-  const neighbor = {
-    description: `${a.description}${getIsIntersected(0.125) ? "" : " "}${
-      b.description
-    }`,
-    breakCount: 0,
+  const neighbor: Annotation = {
+    segments: [
+      ...a.segments,
+      ...(getIsIntersected(0.125) ? [] : [" "]),
+      ...b.segments,
+    ],
+    breakCount: b.breakCount,
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
     maxX: Math.max(a.maxX, b.maxX),
