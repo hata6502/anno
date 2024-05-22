@@ -20,13 +20,11 @@ interface Scale {
 const styleElement = document.createElement("style");
 styleElement.textContent = `
   .image-box-component {
-    pointer-events: none;
-
     .gyanno {
       &.overlayer {
         position: absolute;
         cursor: crosshair;
-        pointer-events: auto;
+        overflow: hidden;
       }
 
       &.segment {
@@ -59,7 +57,7 @@ styleElement.textContent = `
       &.text {
         position: absolute;
         color: transparent;
-        font-family: sans-serif;
+        font-family: ui-monospace;
         user-select: none;
         white-space: pre;
 
@@ -151,20 +149,28 @@ const Overlayer: FunctionComponent = () => {
             cache.get(url) ??
             (async () => {
               let json;
-              while (true) {
-                const response = await fetch(url);
-                if (!response.ok) {
-                  throw new Error(response.statusText);
-                }
-                json = await response.json();
+              overlayerElement.style.cursor = "wait";
+              try {
+                while (true) {
+                  const response = await fetch(url);
+                  if (!response.ok) {
+                    throw new Error(response.statusText);
+                  }
+                  json = await response.json();
 
-                if (!json.metadata || json.has_mp4) {
-                  return;
+                  if (!json.metadata || json.has_mp4) {
+                    return;
+                  }
+                  if (json.metadata.ocrAnnotations) {
+                    break;
+                  }
+                  if (json.metadata.ocr?.processed) {
+                    return;
+                  }
+                  await new Promise((resolve) => setTimeout(resolve, 5000));
                 }
-                if (json.metadata.ocrAnnotations) {
-                  break;
-                }
-                await new Promise((resolve) => setTimeout(resolve, 5000));
+              } finally {
+                overlayerElement.style.cursor = "";
               }
 
               const annotations = (json.metadata.ocrAnnotations as any[]).map(
@@ -209,7 +215,7 @@ const Overlayer: FunctionComponent = () => {
                 const bStyle = getStyle(b);
 
                 a.breakCount = Math.min(
-                  Math.round(
+                  Math.floor(
                     Math.abs(
                       (aStyle.isHorizontal
                         ? bStyle.top - aStyle.top
@@ -218,16 +224,8 @@ const Overlayer: FunctionComponent = () => {
                           (bStyle.left + bStyle.width)) / aStyle.size
                     )
                   ),
-                  // テキストを全選択してコピペすると、
-                  //
-                  //
-                  //
-                  //
-                  //
-                  // 長大な改行が入ることがあった
-                  // 改行は最大2行までに
-                  //
-                  // 制限する
+                  // テキストを全選択してコピペすると、長大な改行が入ることがあった
+                  // 改行は最大2行までに制限する
                   2
                 );
               }
@@ -281,7 +279,9 @@ const Overlayer: FunctionComponent = () => {
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
+      // 右クリックの時はGyazoのコンテキストメニューを表示させる
       if (event.button !== 0) {
+        overlayerElement.style.pointerEvents = "none";
         return;
       }
 
@@ -307,6 +307,8 @@ const Overlayer: FunctionComponent = () => {
     document.addEventListener("pointerdown", handlePointerDown);
 
     const handlePointerMove = (event: PointerEvent) => {
+      overlayerElement.style.pointerEvents = "";
+
       const overlayerRect = overlayerElement.getBoundingClientRect();
       const x = event.clientX - overlayerRect.left;
       const y = event.clientY - overlayerRect.top;
@@ -397,10 +399,6 @@ const Overlayer: FunctionComponent = () => {
     selection.addRange(range);
   }, [handleResult, selectedRect]);
 
-  if (!handleResult) {
-    return;
-  }
-
   const imageBoxElement = document.querySelector(".image-box-component");
   if (!imageBoxElement) {
     return;
@@ -412,6 +410,10 @@ const Overlayer: FunctionComponent = () => {
     return;
   }
   const imageViewerRect = imageViewerElement.getBoundingClientRect();
+  // 画面遷移した直後だとimageViewerRectが0pxになることがあるため、待機する
+  if (!imageViewerRect.width || !imageViewerRect.height) {
+    throw new Promise((resolve) => setTimeout(resolve));
+  }
 
   overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
   overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
@@ -419,6 +421,10 @@ const Overlayer: FunctionComponent = () => {
   overlayerElement.style.height = `${imageViewerRect.height}px`;
   if (overlayerElement.parentNode !== imageBoxElement) {
     imageBoxElement.append(overlayerElement);
+  }
+
+  if (!handleResult) {
+    return;
   }
 
   return (
@@ -447,6 +453,12 @@ const Overlayer: FunctionComponent = () => {
             top: selectedRect[1],
             width: selectedRect[2] - selectedRect[0],
             height: selectedRect[3] - selectedRect[1],
+          }}
+          // 右クリック時にselectedRectのコンテキストメニューを表示させる
+          onPointerDown={(event) => {
+            if (event.button !== 0) {
+              event.stopPropagation();
+            }
           }}
         />
       )}
