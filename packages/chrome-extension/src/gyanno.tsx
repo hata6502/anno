@@ -12,6 +12,11 @@ interface Annotation {
   maxY: number;
 }
 
+interface Result {
+  annotations: Annotation[];
+  scale: Scale;
+}
+
 interface Scale {
   width: number;
   height: number;
@@ -87,10 +92,7 @@ if (!selection) {
   throw new Error("No selection");
 }
 
-const cache = new Map<
-  string,
-  Promise<{ annotations: Annotation[]; scale: Scale } | undefined>
->();
+const cache = new Map<string, Promise<Result | null | undefined>>();
 
 const overlayerElement = document.createElement("div");
 overlayerElement.classList.add("gyanno", "overlayer");
@@ -105,10 +107,7 @@ selectAllDetectorElement.classList.add("select-all-detector");
 document.body.append(selectAllDetectorElement);
 
 const Overlayer: FunctionComponent = () => {
-  const [handleResult, setHandleResult] = useState<{
-    annotations: Annotation[];
-    scale: Scale;
-  }>();
+  const [result, setResult] = useState<Result | null>();
   const [, setRenderCount] = useState(0);
 
   const [grab, setGrab] = useState<[number, number]>();
@@ -137,8 +136,8 @@ const Overlayer: FunctionComponent = () => {
         return;
       }
 
-      setHandleResult(
-        await (() => {
+      setResult(
+        await(() => {
           const match = location.pathname.match(/^\/([0-9a-z]{32})$/);
           if (!match) {
             return;
@@ -159,13 +158,13 @@ const Overlayer: FunctionComponent = () => {
                   json = await response.json();
 
                   if (!json.metadata || json.has_mp4) {
-                    return;
+                    return null;
                   }
                   if (json.metadata.ocrAnnotations) {
                     break;
                   }
                   if (json.metadata.ocr?.processed) {
-                    return;
+                    return null;
                   }
                   await new Promise((resolve) => setTimeout(resolve, 5000));
                 }
@@ -343,7 +342,7 @@ const Overlayer: FunctionComponent = () => {
   }, [grab, selectedRect, selecting]);
 
   useEffect(() => {
-    if (!handleResult || !selectedRectRef.current) {
+    if (!result || !selectedRectRef.current) {
       return;
     }
 
@@ -386,7 +385,7 @@ const Overlayer: FunctionComponent = () => {
 
       selectedSegments.splice(lastSelectedSegmentIndex + 1, 0, {
         annotationIndex,
-        text: "\n".repeat(handleResult.annotations[annotationIndex].breakCount),
+        text: "\n".repeat(result.annotations[annotationIndex].breakCount),
       });
     }
 
@@ -397,7 +396,7 @@ const Overlayer: FunctionComponent = () => {
     const range = document.createRange();
     range.selectNodeContents(selectedRectRef.current);
     selection.addRange(range);
-  }, [handleResult, selectedRect]);
+  }, [result, selectedRect]);
 
   const imageBoxElement = document.querySelector(".image-box-component");
   if (!imageBoxElement) {
@@ -415,6 +414,7 @@ const Overlayer: FunctionComponent = () => {
     throw new Promise((resolve) => setTimeout(resolve));
   }
 
+  overlayerElement.style.display = result === null ? "none" : "";
   overlayerElement.style.left = `${imageViewerRect.left - imageBoxRect.left}px`;
   overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
   overlayerElement.style.width = `${imageViewerRect.width}px`;
@@ -423,19 +423,19 @@ const Overlayer: FunctionComponent = () => {
     imageBoxElement.append(overlayerElement);
   }
 
-  if (!handleResult) {
+  if (!result) {
     return;
   }
 
   return (
     <>
-      {handleResult.annotations.map((annotation, annotationIndex) => (
+      {result.annotations.map((annotation, annotationIndex) => (
         <GyannoText
           key={annotationIndex}
           annotation={annotation}
           annotationIndex={annotationIndex}
           imageViewerRect={imageViewerRect}
-          scale={handleResult.scale}
+          scale={result.scale}
         />
       ))}
 
