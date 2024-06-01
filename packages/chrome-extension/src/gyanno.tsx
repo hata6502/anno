@@ -33,10 +33,17 @@ styleElement.textContent = `
       }
 
       &.segment {
+        /* selected-backgroundに余白を作るため */
+        display: inline-block;
+
         &.selected {
-          background: #cceeff;
           color: #000000;
         }
+      }
+
+      &.selected-background {
+        position: absolute;
+        background: #cceeff;
       }
 
       &.selected-rect {
@@ -114,6 +121,10 @@ const Overlayer: FunctionComponent = () => {
   const [selecting, setSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<[number, number]>();
   const [selectionEnd, setSelectionEnd] = useState<[number, number]>();
+  const [selectedSegmentElements, setSelectedSegmentElements] = useState<
+    HTMLElement[]
+  >([]);
+
   const selectedRect = useMemo(
     () =>
       selectionStart &&
@@ -346,7 +357,7 @@ const Overlayer: FunctionComponent = () => {
       return;
     }
 
-    const selectedSegments = [];
+    const selectedSegmentElements = [];
     const overlayerRect = overlayerElement.getBoundingClientRect();
     for (const segmentElement of document.querySelectorAll(".gyanno.segment")) {
       if (!(segmentElement instanceof HTMLElement)) {
@@ -367,35 +378,36 @@ const Overlayer: FunctionComponent = () => {
         segmentCenterY <= selectedRect[3]
       ) {
         segmentElement.classList.add("selected");
-        selectedSegments.push({
-          annotationIndex: Number(segmentElement.dataset.annotationIndex),
-          text: segmentElement.textContent,
-        });
+        selectedSegmentElements.push(segmentElement);
       } else {
         segmentElement.classList.remove("selected");
       }
     }
+    setSelectedSegmentElements(selectedSegmentElements);
 
-    for (const annotationIndex of new Set(
-      selectedSegments.map(({ annotationIndex }) => annotationIndex)
-    )) {
-      const lastSelectedSegmentIndex = selectedSegments
-        .map(({ annotationIndex }) => annotationIndex)
-        .lastIndexOf(annotationIndex);
-
-      selectedSegments.splice(lastSelectedSegmentIndex + 1, 0, {
-        annotationIndex,
-        text: "\n".repeat(result.annotations[annotationIndex].breakCount),
-      });
+    const selectedTexts = selectedSegmentElements.map(
+      (segmentElement) => segmentElement.textContent
+    );
+    const selectedAnnotationIndexes = selectedSegmentElements.map(
+      (segmentElement) => Number(segmentElement.dataset.annotationIndex)
+    );
+    for (const annotationIndex of new Set(selectedAnnotationIndexes)) {
+      selectedTexts.splice(
+        selectedAnnotationIndexes.lastIndexOf(annotationIndex) + 1,
+        0,
+        "\n".repeat(result.annotations[annotationIndex].breakCount)
+      );
     }
+    const selectedText = selectedTexts.join("");
 
-    selectedRectRef.current.textContent = selectedSegments
-      .map(({ text }) => text)
-      .join("");
-    selection.removeAllRanges();
-    const range = document.createRange();
-    range.selectNodeContents(selectedRectRef.current);
-    selection.addRange(range);
+    selectedRectRef.current.textContent = selectedText;
+    // imageViewer外では、Web標準のテキスト選択を使えるようにする
+    if (selectedText) {
+      selection.removeAllRanges();
+      const range = document.createRange();
+      range.selectNodeContents(selectedRectRef.current);
+      selection.addRange(range);
+    }
   }, [result, selectedRect]);
 
   const imageBoxElement = document.querySelector(".image-box-component");
@@ -429,6 +441,22 @@ const Overlayer: FunctionComponent = () => {
 
   return (
     <>
+      {selectedSegmentElements.map((segmentElement, segmentElementIndex) => {
+        const segmentRect = segmentElement.getBoundingClientRect();
+        return (
+          <div
+            key={segmentElementIndex}
+            className="gyanno selected-background"
+            style={{
+              left: segmentRect.left - imageViewerRect.left,
+              top: segmentRect.top - imageViewerRect.top,
+              width: segmentRect.width,
+              height: segmentRect.height,
+            }}
+          />
+        );
+      })}
+
       {result.annotations.map((annotation, annotationIndex) => (
         <GyannoText
           key={annotationIndex}
