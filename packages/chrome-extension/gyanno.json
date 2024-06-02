@@ -1,6 +1,6 @@
 {
   "name": "gyanno",
-  "version": "6.0.19",
+  "version": "6.0.20",
   "manifest_version": 3,
   "description": "Select text with Gyazo. ",
   "content_scripts": [
