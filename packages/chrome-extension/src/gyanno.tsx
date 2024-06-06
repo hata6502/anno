@@ -28,7 +28,6 @@ styleElement.textContent = `
     .gyanno {
       &.overlayer {
         position: absolute;
-        cursor: crosshair;
         overflow: hidden;
       }
 
@@ -49,19 +48,12 @@ styleElement.textContent = `
       &.selected-rect {
         position: absolute;
         border: 1px solid #ffffff;
-        cursor: grab;
         font-size: 0;
         outline: 1px dotted #000000;
         outline-offset: -1px;
         white-space: pre;
     
-        &.grabbing {
-          cursor: grabbing;
-          user-select: none;
-        }
-    
         &.selecting {
-          cursor: unset;
           user-select: none;
         }
       }
@@ -114,6 +106,16 @@ selectAllDetectorElement.classList.add("select-all-detector");
 document.body.append(selectAllDetectorElement);
 
 const Overlayer: FunctionComponent = () => {
+  const [cursor, setCursor] = useState<
+    | "crosshair"
+    | "grab"
+    | "grabbing"
+    | "wait"
+    | "nw-resize"
+    | "se-resize"
+    | "sw-resize"
+    | "ne-resize"
+  >("crosshair");
   const [result, setResult] = useState<Result | null>();
   const [, setRenderCount] = useState(0);
 
@@ -124,6 +126,7 @@ const Overlayer: FunctionComponent = () => {
   const [selectedSegmentElements, setSelectedSegmentElements] = useState<
     HTMLElement[]
   >([]);
+  const [resizing, setResizing] = useState(false);
 
   const selectedRect = useMemo(
     () =>
@@ -148,7 +151,7 @@ const Overlayer: FunctionComponent = () => {
       }
 
       setResult(
-        await(() => {
+        await (() => {
           const match = location.pathname.match(/^\/([0-9a-z]{32})$/);
           if (!match) {
             return;
@@ -159,7 +162,7 @@ const Overlayer: FunctionComponent = () => {
             cache.get(url) ??
             (async () => {
               let json;
-              overlayerElement.style.cursor = "wait";
+              setCursor("wait");
               try {
                 while (true) {
                   const response = await fetch(url);
@@ -180,7 +183,7 @@ const Overlayer: FunctionComponent = () => {
                   await new Promise((resolve) => setTimeout(resolve, 5000));
                 }
               } finally {
-                overlayerElement.style.cursor = "";
+                setCursor("crosshair");
               }
 
               const annotations = (json.metadata.ocrAnnotations as any[]).map(
@@ -299,47 +302,161 @@ const Overlayer: FunctionComponent = () => {
       const x = event.clientX - overlayerRect.left;
       const y = event.clientY - overlayerRect.top;
 
-      if (
-        selectedRect &&
-        selectedRect[0] <= x &&
-        x <= selectedRect[2] &&
-        selectedRect[1] <= y &&
-        y <= selectedRect[3]
-      ) {
-        setGrab([x, y]);
-        return;
-      }
+      switch (cursor) {
+        case "crosshair": {
+          setSelecting(true);
+          setSelectionStart([x, y]);
+          setSelectionEnd([x, y]);
+          break;
+        }
 
-      setSelecting(true);
-      setSelectionStart([x, y]);
-      setSelectionEnd([x, y]);
+        case "grab": {
+          setGrab([x, y]);
+          setCursor("grabbing");
+          break;
+        }
+
+        case "nw-resize":
+        case "se-resize":
+        case "sw-resize":
+        case "ne-resize": {
+          setResizing(true);
+          break;
+        }
+
+        case "grabbing":
+        case "wait":
+          break;
+
+        default:
+          throw new Error(`Unexpected cursor: ${cursor satisfies never}`);
+      }
     };
     document.addEventListener("pointerdown", handlePointerDown);
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (!selectedRect) {
+        return;
+      }
+
       overlayerElement.style.pointerEvents = "";
 
       const overlayerRect = overlayerElement.getBoundingClientRect();
       const x = event.clientX - overlayerRect.left;
       const y = event.clientY - overlayerRect.top;
 
-      if (grab && selectedRect) {
+      if (grab) {
         const deltaX = x - grab[0];
         const deltaY = y - grab[1];
         setSelectionStart([selectedRect[0] + deltaX, selectedRect[1] + deltaY]);
         setSelectionEnd([selectedRect[2] + deltaX, selectedRect[3] + deltaY]);
-        setGrab([x, y]);
-      }
 
-      if (selecting) {
+        setGrab([x, y]);
+      } else if (selecting) {
         setSelectionEnd([x, y]);
+      } else if (resizing) {
+        const nextSelectedRect = [...selectedRect];
+        switch (cursor) {
+          case "nw-resize": {
+            nextSelectedRect[0] = x;
+            nextSelectedRect[1] = y;
+
+            if (selectedRect[2] <= x) {
+              setCursor("ne-resize");
+            } else if (selectedRect[3] <= y) {
+              setCursor("sw-resize");
+            }
+            break;
+          }
+
+          case "se-resize": {
+            nextSelectedRect[2] = x;
+            nextSelectedRect[3] = y;
+
+            if (x <= selectedRect[0]) {
+              setCursor("sw-resize");
+            } else if (y <= selectedRect[1]) {
+              setCursor("ne-resize");
+            }
+            break;
+          }
+
+          case "sw-resize": {
+            nextSelectedRect[0] = x;
+            nextSelectedRect[3] = y;
+
+            if (selectedRect[2] <= x) {
+              setCursor("se-resize");
+            } else if (y <= selectedRect[1]) {
+              setCursor("nw-resize");
+            }
+            break;
+          }
+
+          case "ne-resize": {
+            nextSelectedRect[2] = x;
+            nextSelectedRect[1] = y;
+
+            if (x <= selectedRect[0]) {
+              setCursor("nw-resize");
+            } else if (selectedRect[3] <= y) {
+              setCursor("se-resize");
+            }
+            break;
+          }
+
+          case "crosshair":
+          case "grab":
+          case "grabbing":
+          case "wait":
+            break;
+
+          default:
+            throw new Error(`Unexpected cursor: ${cursor satisfies never}`);
+        }
+
+        setSelectionStart([nextSelectedRect[0], nextSelectedRect[1]]);
+        setSelectionEnd([nextSelectedRect[2], nextSelectedRect[3]]);
+      } else {
+        const edge = 8;
+        const centerX = (selectedRect[0] + selectedRect[2]) / 2;
+        const centerY = (selectedRect[1] + selectedRect[3]) / 2;
+
+        if (
+          selectedRect[0] + edge <= x &&
+          x <= selectedRect[2] - edge &&
+          selectedRect[1] + edge <= y &&
+          y <= selectedRect[3] - edge
+        ) {
+          setCursor("grab");
+        } else if (
+          x <= selectedRect[0] - edge ||
+          selectedRect[2] + edge <= x ||
+          y <= selectedRect[1] - edge ||
+          selectedRect[3] + edge <= y
+        ) {
+          setCursor("crosshair");
+        } else if (x <= centerX && y <= centerY) {
+          setCursor("nw-resize");
+        } else if (centerX <= x && centerY <= y) {
+          setCursor("se-resize");
+        } else if (x <= centerX && centerY <= y) {
+          setCursor("sw-resize");
+        } else if (centerX <= x && y <= centerY) {
+          setCursor("ne-resize");
+        }
       }
     };
     document.addEventListener("pointermove", handlePointerMove);
 
     const handlePointerUp = () => {
+      if (grab) {
+        setCursor("grab");
+      }
+
       setGrab(undefined);
       setSelecting(false);
+      setResizing(false);
     };
     document.addEventListener("pointerup", handlePointerUp);
     document.addEventListener("pointercancel", handlePointerUp);
@@ -350,7 +467,7 @@ const Overlayer: FunctionComponent = () => {
       document.removeEventListener("pointerup", handlePointerUp);
       document.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [grab, selectedRect, selecting]);
+  }, [cursor, grab, resizing, selectedRect, selecting]);
 
   useEffect(() => {
     if (!result || !selectedRectRef.current) {
@@ -431,6 +548,7 @@ const Overlayer: FunctionComponent = () => {
   overlayerElement.style.top = `${imageViewerRect.top - imageBoxRect.top}px`;
   overlayerElement.style.width = `${imageViewerRect.width}px`;
   overlayerElement.style.height = `${imageViewerRect.height}px`;
+  overlayerElement.style.cursor = cursor;
   if (overlayerElement.parentNode !== imageBoxElement) {
     imageBoxElement.append(overlayerElement);
   }
@@ -473,8 +591,7 @@ const Overlayer: FunctionComponent = () => {
           className={clsx(
             "gyanno",
             "selected-rect",
-            grab && "grabbing",
-            selecting && "selecting"
+            (grab || selecting || resizing) && "selecting"
           )}
           style={{
             left: selectedRect[0],
