@@ -1,0 +1,11 @@
+{
+  "name": "react-safe-translation",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  }
+}

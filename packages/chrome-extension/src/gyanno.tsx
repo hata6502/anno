@@ -1,3 +1,5 @@
+import { useTranslation } from "react-safe-translation";
+
 import clsx from "clsx";
 import { FunctionComponent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -51,7 +53,6 @@ styleElement.textContent = `
         font-size: 0;
         outline: 1px dotted #000000;
         outline-offset: -1px;
-        white-space: pre;
     
         &.selecting {
           user-select: none;
@@ -517,7 +518,7 @@ const Overlayer: FunctionComponent = () => {
     }
     const selectedText = selectedTexts.join("");
 
-    selectedRectRef.current.textContent = selectedText;
+    selectedRectRef.current.innerText = selectedText;
     // imageViewer外では、Web標準のテキスト選択を使えるようにする
     if (selectedText) {
       selection.removeAllRanges();
@@ -578,7 +579,7 @@ const Overlayer: FunctionComponent = () => {
       {result.annotations.map((annotation, annotationIndex) => (
         <GyannoText
           key={annotationIndex}
-          annotation={annotation}
+          defaultAnnotation={annotation}
           annotationIndex={annotationIndex}
           imageViewerRect={imageViewerRect}
           scale={result.scale}
@@ -613,11 +614,22 @@ const Overlayer: FunctionComponent = () => {
 createRoot(overlayerElement).render(<Overlayer />);
 
 const GyannoText: FunctionComponent<{
-  annotation: Annotation;
+  defaultAnnotation: Annotation;
   annotationIndex: number;
   imageViewerRect: DOMRect;
   scale: Scale;
-}> = ({ annotation, annotationIndex, imageViewerRect, scale }) => {
+}> = ({ defaultAnnotation, annotationIndex, imageViewerRect, scale }) => {
+  const translatedText = useTranslation(defaultAnnotation.segments.join(""));
+  const [annotation, setAnnotation] = useState(defaultAnnotation);
+  useEffect(() => {
+    setAnnotation((annotation) => ({
+      ...annotation,
+      segments: [...new Intl.Segmenter().segment(translatedText)].map(
+        ({ segment }) => segment
+      ),
+    }));
+  }, [translatedText]);
+
   const style = getStyle(annotation);
   const width = (style.width / scale.width) * imageViewerRect.width;
   const height = (style.height / scale.height) * imageViewerRect.height;
@@ -628,33 +640,6 @@ const GyannoText: FunctionComponent<{
   const [fontSize, setFontSize] = useState(defaultFontSize);
   const [letterSpacing, setLetterSpacing] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!ref.current) {
-      return;
-    }
-    const element = ref.current;
-
-    // Chrome内蔵の翻訳機能によるテキスト変更を検知する
-    const mutationObserver = new MutationObserver(() => {
-      element.style.fontSize = `${defaultFontSize}px`;
-      element.style.letterSpacing = "0";
-      const textRect = element.getBoundingClientRect();
-      const actual = Math.max(textRect.width, textRect.height);
-
-      const letterSpacing = (expected - actual) / annotation.segments.length;
-      setLetterSpacing(Math.max(letterSpacing, 0));
-      setFontSize(defaultFontSize + Math.min(letterSpacing, 0));
-    });
-    mutationObserver.observe(element, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-    });
-    return () => {
-      mutationObserver.disconnect();
-    };
-  }, [annotation, defaultFontSize, expected]);
 
   useEffect(() => {
     if (!ref.current) {
@@ -675,9 +660,25 @@ const GyannoText: FunctionComponent<{
     };
   }, [annotation, annotationIndex]);
 
+  useEffect(() => {
+    if (!ref.current) {
+      return;
+    }
+
+    ref.current.style.fontSize = `${defaultFontSize}px`;
+    ref.current.style.letterSpacing = "0";
+    const textRect = ref.current.getBoundingClientRect();
+    const actual = Math.max(textRect.width, textRect.height);
+
+    const letterSpacing = (expected - actual) / annotation.segments.length;
+    setLetterSpacing(Math.max(letterSpacing, 0));
+    setFontSize(defaultFontSize + Math.min(letterSpacing, 0));
+  }, [annotation, defaultFontSize, expected]);
+
   return (
     <div
       ref={ref}
+      translate="no"
       className={clsx(
         "gyanno",
         "text",
@@ -696,9 +697,9 @@ const GyannoText: FunctionComponent<{
 const getStyle = ({ segments, minX, minY, maxX, maxY }: Annotation) => {
   let width = maxX - minX;
   let height = maxY - minY;
-  // 例えば「A」1文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
-  // 実際には横書きであることが多いため、1文字の場合は必ず横書きとして判定させる
-  if (segments.length < 2) {
+  // 例えば「it」2文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
+  // 実際には横書きであることが多いため、2文字以下の場合は横書きとして判定させる
+  if (segments.length < 3) {
     width = height = Math.max(width, height);
   }
 
