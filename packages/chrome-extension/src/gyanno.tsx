@@ -1,4 +1,4 @@
-import { useTranslation } from "react-safe-translation";
+import { useLanguage, useTranslation } from "react-controlled-translation";
 
 import clsx from "clsx";
 import { FunctionComponent, useEffect, useMemo, useRef, useState } from "react";
@@ -107,6 +107,8 @@ selectAllDetectorElement.classList.add("select-all-detector");
 document.body.append(selectAllDetectorElement);
 
 const Overlayer: FunctionComponent = () => {
+  const language = useLanguage();
+
   const [cursor, setCursor] = useState<
     | "crosshair"
     | "grab"
