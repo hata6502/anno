@@ -697,20 +697,16 @@ const GyannoText: FunctionComponent<{
 };
 
 const getStyle = ({ segments, minX, minY, maxX, maxY }: Annotation) => {
-  let width = maxX - minX;
-  let height = maxY - minY;
-  // 例えば「it」2文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
-  // 実際には横書きであることが多いため、2文字以下の場合は横書きとして判定させる
-  if (segments.length < 3) {
-    width = height = Math.max(width, height);
-  }
-
+  const width = maxX - minX;
+  const height = maxY - minY;
   return {
     left: minX,
     top: minY,
     width,
     height,
-    isHorizontal: width >= height,
+    // 例えば「it」2文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
+    // 実際には横書きであることが多いため、2文字以下の場合は横書きとして判定させる
+    isHorizontal: segments.length < 3 || width >= height,
     size: Math.min(width, height),
   };
 };
