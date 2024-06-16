@@ -277,19 +277,9 @@ const Overlayer: FunctionComponent = () => {
     const resizeObserver = new ResizeObserver(handle);
     resizeObserver.observe(document.body);
 
-    const handleSelectionChange = () => {
-      if (selection.containsNode(selectAllDetectorElement, true)) {
-        const overlayerRect = overlayerElement.getBoundingClientRect();
-        setSelectionStart([0, 0]);
-        setSelectionEnd([overlayerRect.width, overlayerRect.height]);
-      }
-    };
-    document.addEventListener("selectionchange", handleSelectionChange);
-
     return () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
-      document.removeEventListener("selectionchange", handleSelectionChange);
     };
   }, []);
 
@@ -469,11 +459,31 @@ const Overlayer: FunctionComponent = () => {
     document.addEventListener("pointerup", handlePointerUp);
     document.addEventListener("pointercancel", handlePointerUp);
 
+    const handleSelectionChange = () => {
+      if (selection.containsNode(selectAllDetectorElement, true)) {
+        const overlayerRect = overlayerElement.getBoundingClientRect();
+        setSelectionStart([0, 0]);
+        setSelectionEnd([overlayerRect.width, overlayerRect.height]);
+      }
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCursor("crosshair");
+        setSelectionStart([-16, -16]);
+        setSelectionEnd([-16, -16]);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerUp);
       document.removeEventListener("pointercancel", handlePointerUp);
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [cursor, grab, resize, selectedRect, selecting]);
 
