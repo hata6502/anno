@@ -129,7 +129,7 @@ const Overlayer: FunctionComponent = () => {
   const [selectedSegmentElements, setSelectedSegmentElements] = useState<
     HTMLElement[]
   >([]);
-  const [resizing, setResizing] = useState(false);
+  const [resize, setResize] = useState<[number, number]>();
 
   const selectedRect = useMemo(
     () =>
@@ -323,7 +323,7 @@ const Overlayer: FunctionComponent = () => {
         case "se-resize":
         case "sw-resize":
         case "ne-resize": {
-          setResizing(true);
+          setResize([x, y]);
           break;
         }
 
@@ -357,52 +357,55 @@ const Overlayer: FunctionComponent = () => {
         setGrab([x, y]);
       } else if (selecting) {
         setSelectionEnd([x, y]);
-      } else if (resizing) {
+      } else if (resize) {
+        const deltaX = x - resize[0];
+        const deltaY = y - resize[1];
+
         const nextSelectedRect = [...selectedRect];
         switch (cursor) {
           case "nw-resize": {
-            nextSelectedRect[0] = x;
-            nextSelectedRect[1] = y;
+            nextSelectedRect[0] += deltaX;
+            nextSelectedRect[1] += deltaY;
 
-            if (selectedRect[2] <= x) {
+            if (selectedRect[2] <= nextSelectedRect[0]) {
               setCursor("ne-resize");
-            } else if (selectedRect[3] <= y) {
+            } else if (selectedRect[3] <= nextSelectedRect[1]) {
               setCursor("sw-resize");
             }
             break;
           }
 
           case "se-resize": {
-            nextSelectedRect[2] = x;
-            nextSelectedRect[3] = y;
+            nextSelectedRect[2] += deltaX;
+            nextSelectedRect[3] += deltaY;
 
-            if (x <= selectedRect[0]) {
+            if (nextSelectedRect[2] <= selectedRect[0]) {
               setCursor("sw-resize");
-            } else if (y <= selectedRect[1]) {
+            } else if (nextSelectedRect[3] <= selectedRect[1]) {
               setCursor("ne-resize");
             }
             break;
           }
 
           case "sw-resize": {
-            nextSelectedRect[0] = x;
-            nextSelectedRect[3] = y;
+            nextSelectedRect[0] += deltaX;
+            nextSelectedRect[3] += deltaY;
 
-            if (selectedRect[2] <= x) {
+            if (selectedRect[2] <= nextSelectedRect[0]) {
               setCursor("se-resize");
-            } else if (y <= selectedRect[1]) {
+            } else if (nextSelectedRect[3] <= selectedRect[1]) {
               setCursor("nw-resize");
             }
             break;
           }
 
           case "ne-resize": {
-            nextSelectedRect[2] = x;
-            nextSelectedRect[1] = y;
+            nextSelectedRect[2] += deltaX;
+            nextSelectedRect[1] += deltaY;
 
-            if (x <= selectedRect[0]) {
+            if (nextSelectedRect[2] <= selectedRect[0]) {
               setCursor("nw-resize");
-            } else if (selectedRect[3] <= y) {
+            } else if (selectedRect[3] <= nextSelectedRect[1]) {
               setCursor("se-resize");
             }
             break;
@@ -420,8 +423,10 @@ const Overlayer: FunctionComponent = () => {
 
         setSelectionStart([nextSelectedRect[0], nextSelectedRect[1]]);
         setSelectionEnd([nextSelectedRect[2], nextSelectedRect[3]]);
+
+        setResize([x, y]);
       } else {
-        const edge = 8;
+        const edge = 4;
         const centerX = (selectedRect[0] + selectedRect[2]) / 2;
         const centerY = (selectedRect[1] + selectedRect[3]) / 2;
 
@@ -459,7 +464,7 @@ const Overlayer: FunctionComponent = () => {
 
       setGrab(undefined);
       setSelecting(false);
-      setResizing(false);
+      setResize(undefined);
     };
     document.addEventListener("pointerup", handlePointerUp);
     document.addEventListener("pointercancel", handlePointerUp);
@@ -470,7 +475,7 @@ const Overlayer: FunctionComponent = () => {
       document.removeEventListener("pointerup", handlePointerUp);
       document.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [cursor, grab, resizing, selectedRect, selecting]);
+  }, [cursor, grab, resize, selectedRect, selecting]);
 
   useEffect(() => {
     if (!result || !selectedRectRef.current) {
@@ -594,7 +599,7 @@ const Overlayer: FunctionComponent = () => {
           className={clsx(
             "gyanno",
             "selected-rect",
-            (grab || selecting || resizing) && "selecting"
+            (grab || selecting || resize) && "selecting"
           )}
           style={{
             left: selectedRect[0],
@@ -639,8 +644,6 @@ const GyannoText: FunctionComponent<{
   const defaultFontSize = Math.min(width, height);
   const expected = Math.max(width, height);
 
-  const [fontSize, setFontSize] = useState(defaultFontSize);
-  const [letterSpacing, setLetterSpacing] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -672,9 +675,9 @@ const GyannoText: FunctionComponent<{
     const textRect = ref.current.getBoundingClientRect();
     const actual = Math.max(textRect.width, textRect.height);
 
-    const letterSpacing = (expected - actual) / annotation.segments.length;
-    setLetterSpacing(Math.max(letterSpacing, 0));
-    setFontSize(defaultFontSize + Math.min(letterSpacing, 0));
+    const delta = (expected - actual) / annotation.segments.length;
+    ref.current.style.fontSize = `${defaultFontSize + Math.min(delta, 0)}px`;
+    ref.current.style.letterSpacing = `${Math.max(delta, 0)}px`;
   }, [annotation, defaultFontSize, expected]);
 
   return (
@@ -689,8 +692,6 @@ const GyannoText: FunctionComponent<{
       style={{
         left: (style.left / scale.width) * imageViewerRect.width,
         top: (style.top / scale.height) * imageViewerRect.height,
-        fontSize,
-        letterSpacing,
       }}
     />
   );
