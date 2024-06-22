@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 
 /** OCRによって検出された矩形領域 */
 interface Annotation {
-  segments: string[];
+  text: string;
   breakCount: number;
   minX: number;
   minY: number;
@@ -34,9 +34,6 @@ styleElement.textContent = `
       }
 
       &.segment {
-        /* selected-backgroundに余白を作るため */
-        display: inline-block;
-
         &.selected {
           color: #000000;
         }
@@ -61,6 +58,8 @@ styleElement.textContent = `
 
       &.text {
         position: absolute;
+        display: flex;
+        align-items: center;
         color: transparent;
         font-family: ui-monospace;
         user-select: none;
@@ -107,8 +106,6 @@ selectAllDetectorElement.classList.add("select-all-detector");
 document.body.append(selectAllDetectorElement);
 
 const Overlayer: FunctionComponent = () => {
-  const language = useLanguage();
-
   const [cursor, setCursor] = useState<
     | "crosshair"
     | "grab"
@@ -196,9 +193,7 @@ const Overlayer: FunctionComponent = () => {
                   // @ts-expect-error
                   const ys = boundingPoly.vertices.map(({ y }) => y ?? 0);
                   return {
-                    segments: [
-                      ...new Intl.Segmenter().segment(description),
-                    ].map(({ segment }) => segment),
+                    text: description,
                     breakCount: 0,
                     minX: Math.min(...xs),
                     minY: Math.min(...ys),
@@ -545,6 +540,20 @@ const Overlayer: FunctionComponent = () => {
     }
   }, [result, selectedRect]);
 
+  const texts = useMemo(
+    () => result?.annotations.map(({ text }) => text) ?? [],
+    [result]
+  );
+  const translatedTexts = useTranslation(texts);
+  const translatedAnnotations = useMemo(
+    () =>
+      result?.annotations.map((annotation, annotationIndex) => ({
+        ...annotation,
+        text: translatedTexts.at(annotationIndex) ?? "",
+      })) ?? [],
+    [result, translatedTexts]
+  );
+
   const imageBoxElement = document.querySelector(".image-box-component");
   if (!imageBoxElement) {
     return;
@@ -593,10 +602,10 @@ const Overlayer: FunctionComponent = () => {
         );
       })}
 
-      {result.annotations.map((annotation, annotationIndex) => (
+      {translatedAnnotations.map((annotation, annotationIndex) => (
         <GyannoText
           key={annotationIndex}
-          defaultAnnotation={annotation}
+          annotation={annotation}
           annotationIndex={annotationIndex}
           imageViewerRect={imageViewerRect}
           scale={result.scale}
@@ -631,21 +640,18 @@ const Overlayer: FunctionComponent = () => {
 createRoot(overlayerElement).render(<Overlayer />);
 
 const GyannoText: FunctionComponent<{
-  defaultAnnotation: Annotation;
+  annotation: Annotation;
   annotationIndex: number;
   imageViewerRect: DOMRect;
   scale: Scale;
-}> = ({ defaultAnnotation, annotationIndex, imageViewerRect, scale }) => {
-  const translatedText = useTranslation(defaultAnnotation.segments.join(""));
-  const [annotation, setAnnotation] = useState(defaultAnnotation);
-  useEffect(() => {
-    setAnnotation((annotation) => ({
-      ...annotation,
-      segments: [...new Intl.Segmenter().segment(translatedText)].map(
+}> = ({ annotation, annotationIndex, imageViewerRect, scale }) => {
+  const segments = useMemo(
+    () =>
+      [...new Intl.Segmenter().segment(annotation.text)].map(
         ({ segment }) => segment
       ),
-    }));
-  }, [translatedText]);
+    [annotation]
+  );
 
   const style = getStyle(annotation);
   const width = (style.width / scale.width) * imageViewerRect.width;
@@ -662,7 +668,7 @@ const GyannoText: FunctionComponent<{
     }
     const element = ref.current;
 
-    for (const segment of annotation.segments) {
+    for (const segment of segments) {
       const spanElement = document.createElement("span");
       spanElement.classList.add("gyanno", "segment");
       spanElement.dataset.annotationIndex = String(annotationIndex);
@@ -673,22 +679,29 @@ const GyannoText: FunctionComponent<{
     return () => {
       element.textContent = "";
     };
-  }, [annotation, annotationIndex]);
+  }, [annotationIndex, segments]);
 
   useEffect(() => {
     if (!ref.current) {
       return;
     }
 
-    ref.current.style.fontSize = `${defaultFontSize}px`;
     ref.current.style.letterSpacing = "0";
+    ref.current.style.fontSize = `${defaultFontSize}px`;
+    ref.current.style.width = "";
+    ref.current.style.height = "";
     const textRect = ref.current.getBoundingClientRect();
     const actual = Math.max(textRect.width, textRect.height);
 
-    const delta = (expected - actual) / annotation.segments.length;
-    ref.current.style.fontSize = `${defaultFontSize + Math.min(delta, 0)}px`;
-    ref.current.style.letterSpacing = `${Math.max(delta, 0)}px`;
-  }, [annotation, defaultFontSize, expected]);
+    ref.current.style.letterSpacing = `${
+      Math.max(expected - actual, 0) / segments.length
+    }px`;
+    ref.current.style.fontSize = `${
+      defaultFontSize * Math.min(expected / actual, 1)
+    }px`;
+    ref.current.style.width = `${width}px`;
+    ref.current.style.height = `${height}px`;
+  }, [defaultFontSize, expected, segments]);
 
   return (
     <div
@@ -707,18 +720,19 @@ const GyannoText: FunctionComponent<{
   );
 };
 
-const getStyle = ({ segments, minX, minY, maxX, maxY }: Annotation) => {
+const getStyle = ({ text, minX, minY, maxX, maxY }: Annotation) => {
   const width = maxX - minX;
   const height = maxY - minY;
+  // 例えば「it」2文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
+  // 実際には横書きであることが多いため、2文字以下の場合は横書きとして判定させる
+  const isHorizontal = text.length < 3 || width >= height;
   return {
     left: minX,
     top: minY,
     width,
     height,
-    // 例えば「it」2文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
-    // 実際には横書きであることが多いため、2文字以下の場合は横書きとして判定させる
-    isHorizontal: segments.length < 3 || width >= height,
-    size: Math.min(width, height),
+    isHorizontal,
+    size: isHorizontal ? height : width,
   };
 };
 
@@ -740,11 +754,7 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
   }
 
   const neighbor: Annotation = {
-    segments: [
-      ...a.segments,
-      ...(getIsIntersected(0.125) ? [] : [" "]),
-      ...b.segments,
-    ],
+    text: `${a.text}${getIsIntersected(0.125) ? "" : " "}${b.text}`,
     breakCount: b.breakCount,
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
@@ -754,8 +764,8 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
 
   const neighborStyle = getStyle(neighbor);
   if (
-    Math.abs(neighborStyle.size - aStyle.size) >= aStyle.size * 0.5 ||
-    Math.abs(neighborStyle.size - bStyle.size) >= bStyle.size * 0.5
+    (neighborStyle.size - aStyle.size) / aStyle.size >= 0.5 ||
+    (neighborStyle.size - bStyle.size) / bStyle.size >= 0.5
   ) {
     return;
   }
