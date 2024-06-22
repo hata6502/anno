@@ -1,4 +1,4 @@
-import { useLanguage, useTranslation } from "react-controlled-translation";
+import { useTranslation } from "react-controlled-translation";
 
 import clsx from "clsx";
 import { FunctionComponent, useEffect, useMemo, useRef, useState } from "react";
@@ -540,20 +540,6 @@ const Overlayer: FunctionComponent = () => {
     }
   }, [result, selectedRect]);
 
-  const texts = useMemo(
-    () => result?.annotations.map(({ text }) => text) ?? [],
-    [result]
-  );
-  const translatedTexts = useTranslation(texts);
-  const translatedAnnotations = useMemo(
-    () =>
-      result?.annotations.map((annotation, annotationIndex) => ({
-        ...annotation,
-        text: translatedTexts.at(annotationIndex) ?? "",
-      })) ?? [],
-    [result, translatedTexts]
-  );
-
   const imageBoxElement = document.querySelector(".image-box-component");
   if (!imageBoxElement) {
     return;
@@ -602,7 +588,7 @@ const Overlayer: FunctionComponent = () => {
         );
       })}
 
-      {translatedAnnotations.map((annotation, annotationIndex) => (
+      {result.annotations.map((annotation, annotationIndex) => (
         <GyannoText
           key={annotationIndex}
           annotation={annotation}
@@ -645,20 +631,21 @@ const GyannoText: FunctionComponent<{
   imageViewerRect: DOMRect;
   scale: Scale;
 }> = ({ annotation, annotationIndex, imageViewerRect, scale }) => {
-  const segments = useMemo(
-    () =>
-      [...new Intl.Segmenter().segment(annotation.text)].map(
-        ({ segment }) => segment
-      ),
-    [annotation]
-  );
-
   const style = getStyle(annotation);
   const width = (style.width / scale.width) * imageViewerRect.width;
   const height = (style.height / scale.height) * imageViewerRect.height;
 
   const defaultFontSize = Math.min(width, height);
   const expected = Math.max(width, height);
+
+  const translatedText = useTranslation(annotation.text);
+  const segments = useMemo(
+    () =>
+      [...new Intl.Segmenter().segment(translatedText)].map(
+        ({ segment }) => segment
+      ),
+    [translatedText]
+  );
 
   const ref = useRef<HTMLDivElement>(null);
 
