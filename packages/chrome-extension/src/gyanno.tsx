@@ -32,6 +32,7 @@ styleElement.textContent = `
       &.overlayer {
         position: absolute;
         overflow: hidden;
+        touch-action: pinch-zoom;
       }
 
       &.segment {
@@ -130,16 +131,15 @@ const Overlayer: FunctionComponent = () => {
   >([]);
   const [resize, setResize] = useState<[number, number]>();
 
-  const selectedRect = useMemo(
+  const selectedRect = useMemo<[number, number, number, number]>(
     () =>
-      selectionStart &&
-      selectionEnd &&
-      ([
-        Math.min(selectionStart[0], selectionEnd[0]),
-        Math.min(selectionStart[1], selectionEnd[1]),
-        Math.max(selectionStart[0], selectionEnd[0]),
-        Math.max(selectionStart[1], selectionEnd[1]),
-      ] as const),
+      (selectionStart &&
+        selectionEnd && [
+          Math.min(selectionStart[0], selectionEnd[0]),
+          Math.min(selectionStart[1], selectionEnd[1]),
+          Math.max(selectionStart[0], selectionEnd[0]),
+          Math.max(selectionStart[1], selectionEnd[1]),
+        ]) || [-16, -16, -16, -16],
     [selectionStart, selectionEnd]
   );
 
@@ -281,6 +281,46 @@ const Overlayer: FunctionComponent = () => {
   }, []);
 
   useEffect(() => {
+    const handleClick = async () => {
+      if (matchMedia("(pointer: coarse)").matches) {
+        await navigator.clipboard.writeText(
+          selectedRectRef.current?.innerText ?? ""
+        );
+      }
+    };
+    overlayerElement.addEventListener("click", handleClick);
+
+    const detectCursor = ([x, y]: [number, number]) => {
+      const edge = 4;
+      const centerX = (selectedRect[0] + selectedRect[2]) / 2;
+      const centerY = (selectedRect[1] + selectedRect[3]) / 2;
+
+      if (
+        selectedRect[0] + edge <= x &&
+        x <= selectedRect[2] - edge &&
+        selectedRect[1] + edge <= y &&
+        y <= selectedRect[3] - edge
+      ) {
+        return "grab";
+      } else if (
+        x <= selectedRect[0] - edge ||
+        selectedRect[2] + edge <= x ||
+        y <= selectedRect[1] - edge ||
+        selectedRect[3] + edge <= y
+      ) {
+        return "crosshair";
+      } else if (x <= centerX && y <= centerY) {
+        return "nw-resize";
+      } else if (centerX <= x && centerY <= y) {
+        return "se-resize";
+      } else if (x <= centerX && centerY <= y) {
+        return "sw-resize";
+      } else if (centerX <= x && y <= centerY) {
+        return "ne-resize";
+      }
+      return cursor;
+    };
+
     const handlePointerDown = (event: PointerEvent) => {
       // 右クリックの時はGyazoのコンテキストメニューを表示させる
       if (event.button !== 0) {
@@ -292,7 +332,10 @@ const Overlayer: FunctionComponent = () => {
       const x = event.clientX - overlayerRect.left;
       const y = event.clientY - overlayerRect.top;
 
-      switch (cursor) {
+      const detectedCursor = detectCursor([x, y]);
+      setCursor(detectedCursor);
+
+      switch (detectedCursor) {
         case "crosshair": {
           setSelecting(true);
           setSelectionStart([x, y]);
@@ -315,20 +358,20 @@ const Overlayer: FunctionComponent = () => {
         }
 
         case "grabbing":
-        case "wait":
+        case "wait": {
           break;
+        }
 
-        default:
-          throw new Error(`Unexpected cursor: ${cursor satisfies never}`);
+        default: {
+          throw new Error(
+            `Unexpected cursor: ${detectedCursor satisfies never}`
+          );
+        }
       }
     };
     document.addEventListener("pointerdown", handlePointerDown);
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (!selectedRect) {
-        return;
-      }
-
       overlayerElement.style.pointerEvents = "";
 
       const overlayerRect = overlayerElement.getBoundingClientRect();
@@ -413,33 +456,7 @@ const Overlayer: FunctionComponent = () => {
 
         setResize([x, y]);
       } else {
-        const edge = 4;
-        const centerX = (selectedRect[0] + selectedRect[2]) / 2;
-        const centerY = (selectedRect[1] + selectedRect[3]) / 2;
-
-        if (
-          selectedRect[0] + edge <= x &&
-          x <= selectedRect[2] - edge &&
-          selectedRect[1] + edge <= y &&
-          y <= selectedRect[3] - edge
-        ) {
-          setCursor("grab");
-        } else if (
-          x <= selectedRect[0] - edge ||
-          selectedRect[2] + edge <= x ||
-          y <= selectedRect[1] - edge ||
-          selectedRect[3] + edge <= y
-        ) {
-          setCursor("crosshair");
-        } else if (x <= centerX && y <= centerY) {
-          setCursor("nw-resize");
-        } else if (centerX <= x && centerY <= y) {
-          setCursor("se-resize");
-        } else if (x <= centerX && centerY <= y) {
-          setCursor("sw-resize");
-        } else if (centerX <= x && y <= centerY) {
-          setCursor("ne-resize");
-        }
+        setCursor(detectCursor([x, y]));
       }
     };
     document.addEventListener("pointermove", handlePointerMove);
@@ -457,7 +474,10 @@ const Overlayer: FunctionComponent = () => {
     document.addEventListener("pointercancel", handlePointerUp);
 
     const handleSelectionChange = () => {
-      if (selection.containsNode(selectAllDetectorElement, true)) {
+      if (
+        matchMedia("(pointer: fine)").matches &&
+        selection.containsNode(selectAllDetectorElement, true)
+      ) {
         const overlayerRect = overlayerElement.getBoundingClientRect();
         setSelectionStart([0, 0]);
         setSelectionEnd([overlayerRect.width, overlayerRect.height]);
@@ -475,6 +495,8 @@ const Overlayer: FunctionComponent = () => {
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      overlayerElement.removeEventListener("click", handleClick);
+
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerUp);
@@ -534,7 +556,7 @@ const Overlayer: FunctionComponent = () => {
 
     selectedRectRef.current.innerText = selectedText;
     // imageViewer外では、Web標準のテキスト選択を使えるようにする
-    if (selectedText) {
+    if (matchMedia("(pointer: fine)").matches && selectedText) {
       selection.removeAllRanges();
       const range = document.createRange();
       range.selectNodeContents(selectedRectRef.current);
