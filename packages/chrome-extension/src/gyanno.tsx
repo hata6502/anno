@@ -1,4 +1,5 @@
 import { useTranslation } from "react-controlled-translation";
+import stringWidth from "string-width";
 
 import clsx from "clsx";
 import { FunctionComponent, useEffect, useMemo, useRef, useState } from "react";
@@ -94,6 +95,7 @@ if (!selection) {
 const cache = new Map<string, Promise<Result | null | undefined>>();
 
 const overlayerElement = document.createElement("div");
+overlayerElement.translate = false;
 overlayerElement.classList.add("gyanno", "overlayer");
 overlayerElement.addEventListener("click", (event) => {
   // テキスト選択と画像拡大の操作が干渉しないようにする
@@ -693,7 +695,6 @@ const GyannoText: FunctionComponent<{
   return (
     <div
       ref={ref}
-      translate="no"
       className={clsx(
         "gyanno",
         "text",
@@ -712,7 +713,7 @@ const getStyle = ({ text, minX, minY, maxX, maxY }: Annotation) => {
   const height = maxY - minY;
   // 例えば「it」2文字だと、widthよりもheightの方が大きいため、縦書きとして判定されてしまう
   // 実際には横書きであることが多いため、2文字以下の場合は横書きとして判定させる
-  const isHorizontal = text.length < 3 || width >= height;
+  const isHorizontal = stringWidth(text) < 3 || width >= height;
   return {
     left: minX,
     top: minY,
@@ -740,8 +741,17 @@ const getNeighborAnnotation = (a: Annotation, b: Annotation) => {
     return;
   }
 
+  const insertsLatinSpace =
+    stringWidth(
+      [...new Intl.Segmenter().segment(a.text)].at(-1)?.segment ?? ""
+    ) < 2 &&
+    stringWidth(
+      [...new Intl.Segmenter().segment(b.text)].at(0)?.segment ?? ""
+    ) < 2 &&
+    !getIsIntersected(0.0625);
+
   const neighbor: Annotation = {
-    text: `${a.text}${getIsIntersected(0.125) ? "" : " "}${b.text}`,
+    text: `${a.text}${insertsLatinSpace ? " " : ""}${b.text}`,
     breakCount: b.breakCount,
     minX: Math.min(a.minX, b.minX),
     minY: Math.min(a.minY, b.minY),
