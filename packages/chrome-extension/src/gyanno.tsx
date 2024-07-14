@@ -123,13 +123,10 @@ const Overlayer: FunctionComponent = () => {
   const [, setRenderCount] = useState(0);
 
   const [grab, setGrab] = useState<[number, number]>();
+  const [resize, setResize] = useState<[number, number]>();
   const [selecting, setSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<[number, number]>();
   const [selectionEnd, setSelectionEnd] = useState<[number, number]>();
-  const [selectedSegmentElements, setSelectedSegmentElements] = useState<
-    HTMLElement[]
-  >([]);
-  const [resize, setResize] = useState<[number, number]>();
 
   const selectedRect = useMemo<[number, number, number, number]>(
     () =>
@@ -142,6 +139,11 @@ const Overlayer: FunctionComponent = () => {
         ]) || [-16, -16, -16, -16],
     [selectionStart, selectionEnd]
   );
+  const [backupedRect, setBackupedRect] = useState(selectedRect);
+
+  const [selectedSegmentElements, setSelectedSegmentElements] = useState<
+    HTMLElement[]
+  >([]);
 
   const selectedRectRef = useRef<HTMLDivElement>(null);
 
@@ -291,7 +293,7 @@ const Overlayer: FunctionComponent = () => {
     overlayerElement.addEventListener("click", handleClick);
 
     const detectCursor = ([x, y]: [number, number]) => {
-      const edge = 4;
+      const edge = matchMedia("(pointer: fine)").matches ? 4 : 8;
       const centerX = (selectedRect[0] + selectedRect[2]) / 2;
       const centerY = (selectedRect[1] + selectedRect[3]) / 2;
 
@@ -461,7 +463,7 @@ const Overlayer: FunctionComponent = () => {
     };
     document.addEventListener("pointermove", handlePointerMove);
 
-    const handlePointerUp = () => {
+    const reset = () => {
       if (grab) {
         setCursor("grab");
       }
@@ -470,8 +472,19 @@ const Overlayer: FunctionComponent = () => {
       setSelecting(false);
       setResize(undefined);
     };
+
+    const handlePointerUp = () => {
+      reset();
+      setBackupedRect(selectedRect);
+    };
     document.addEventListener("pointerup", handlePointerUp);
-    document.addEventListener("pointercancel", handlePointerUp);
+
+    const handlePointerCancel = () => {
+      reset();
+      setSelectionStart([backupedRect[0], backupedRect[1]]);
+      setSelectionEnd([backupedRect[2], backupedRect[3]]);
+    };
+    document.addEventListener("pointercancel", handlePointerCancel);
 
     const handleSelectionChange = () => {
       if (
@@ -500,11 +513,11 @@ const Overlayer: FunctionComponent = () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerUp);
-      document.removeEventListener("pointercancel", handlePointerUp);
+      document.removeEventListener("pointercancel", handlePointerCancel);
       document.removeEventListener("selectionchange", handleSelectionChange);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [cursor, grab, resize, selectedRect, selecting]);
+  }, [backupedRect, cursor, grab, resize, selectedRect, selecting]);
 
   useEffect(() => {
     if (!result || !selectedRectRef.current) {
